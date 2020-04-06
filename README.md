@@ -1,2 +1,2 @@
-# pyMarkowitz
-Python Implementation of Markowitz Model
+# Portfolio Optimizer
+Python Implementation of Mean Variance Model
