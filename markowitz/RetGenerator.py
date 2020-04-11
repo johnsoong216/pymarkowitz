@@ -13,32 +13,75 @@ class RetGenerator:
 
             ### Detect Non-Numeric Column
 
-            self.return_mat = price_data.pct_change().dropna(how='any').values.transpose()
+            self.price_mat = price_data.values.transpose()
             self.assets = price_data.columns
+            self.index = price_data.index
 
         elif isinstance(price_data, np.ndarray):
 
-            self.return_mat = np.diff(price_data) / price_data[: ,1:]
+            self.price_mat = price_data
             self.assets = assets
+            self.index = np.arange(0, len(price_data), 1)
 
-    def exp_smoothing(self, decay):
+        self.return_mat = None
+        self.return_index = None
 
-        dim = self.return_mat.shape
-        decay_mat = decay ** np.linspace(tuple(np.arange(0 ,dim[1])), tuple(np.arange(0 ,dim[1])), dim[0])
+    def calc_return(self, method, inplace=True, **kwargs):
 
-        self.return_mat = np.multiply(self.return_mat, decay_mat)
+        price_mat = self.price_mat
+        index = self.index
 
-    def return_mat(self, return_format='df'):
+        if method == 'daily':
+            ret_mat, ret_idx = RetGenerator.return_formula(price_mat, index, window=1, step=1, roll=True, **kwargs)
+        elif method == 'rolling':
+            ret_mat, ret_idx = RetGenerator.return_formula(price_mat, index, roll=True, **kwargs)
+        elif method == 'collapse':
+            ret_mat, ret_idx = RetGenerator.return_formula(price_mat, index, roll=False, **kwargs)
+        # May add later
+        # elif method == 'week':
+        #     pass
+        # elif method == 'month':
+        #     pass
+        # elif method == 'quarter':
+        #     pass
+        # elif method == 'annual':
+        #     pass
+        else:
+            raise MethodException("""Invalid Method. Valid Inputs: daily, rolling, collapse""")
 
-        df = pd.DataFrame(self.return_mat, columns=self.assets)
+        if inplace:
+            self.return_mat = ret_mat
+            self.return_index = ret_idx
+        else:
+            return self.result(ret_mat, ret_idx)
+
+    @staticmethod
+    def return_formula(price_mat, index, roll=False, window=30, log=False, step=5):
+
+        if roll:
+            step = 1
+            shift = window
+        else:
+            shift = step
+
+        if not log:
+            return ((price_mat/np.roll(price_mat, shift=shift, axis=1)) - 1)[:, shift::step], index[shift::step]
+        return np.log((price_mat/np.roll(price_mat, shift=shift, axis=1)))[:, shift::step], index[shift::step]
+
+    def result(self, ret_mat=None, index=None, return_format='df', **kwargs):
+
+        if ret_mat is None:
+            ret_mat = self.return_mat
+        if index is None:
+            index = self.return_index
+
+        df = pd.DataFrame(ret_mat.T, columns=self.assets, index=index, **kwargs)
 
         if return_format == 'df':
             return df
-        elif return_format == 'timeseries':
-            return
-        elif return_format == 'dist':
-            return
+        elif return_format == 'dict':
+            return df.unstack().to_dict()
         elif return_format == 'raw':
-            return self.assets, self.return_mat
+            return self.assets, ret_mat, index
         else:
-            raise FormatException("Invalid Format. Valid options are: df, timeseries, dict, raw")
+            raise FormatException("Invalid Format. Valid options are: df, dict, raw")

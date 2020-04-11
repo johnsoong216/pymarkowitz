@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import sklearn as sk
 import seaborn as sns
+import warnings
 from .Exceptions import *
 
 
@@ -18,20 +19,25 @@ class CovGenerator:
 
         self.cov_mat = None
 
-    def calc_cov_mat(self, technique='sample', semi=False, method='default', unit_time=250, bm_return=0,
-                     assume_zero=False, decay=0.95, **kwargs):
+    def calc_cov_mat(self, technique='sample', semi=False, method='default', unit_time=250,
+                     inplace=True, builtin=False, weights=None, bm_return=0.001, assume_zero=False, **kwargs):
 
         return_mat = self.return_mat
 
         if semi:
-            return_mat = self.semi_cov(return_mat, bm_return, assume_zero)
+            return_mat = self.semi_cov(return_mat, bm_return=bm_return, assume_zero=assume_zero)
 
         if technique == "sample":
-            self.cov_mat = self.sample_cov(return_mat, method, unit_time, decay)
+            cov_mat = self.sample_cov(return_mat, method, unit_time, builtin=builtin, weights=weights, **kwargs)
         else:
-            self.cov_mat = self.sk_technique(return_mat, unit_time, **kwargs)
+            cov_mat = self.sk_technique(return_mat, technique, unit_time, **kwargs)
 
-    def sk_technique(self, return_mat, technique, unit_time, **kwargs):
+        if inplace:
+            self.cov_mat = cov_mat
+        else:
+            return self.result(cov_mat, corr=False)
+
+    def sk_technique(self, return_mat, technique, unit_time=250, **kwargs):
 
         technique_dict = {"EmpiricalCovariance": sk.covariance.EmpiricalCovariance,
                           "EllipticEnvelope": sk.covariance.EllipticEnvelope,
@@ -41,22 +47,36 @@ class CovGenerator:
                           "MinCovDet": sk.covariance.MinCovDet,
                           "OAS": sk.covariance.OAS,
                           "ShrunkCovariance": sk.covariance.ShrunkCovariance}
+        try:
+            return technique_dict[technique](**kwargs).fit(return_mat.T).covariance_ * unit_time
+        except KeyError:
+            raise MethodException("""Invalid Technique. Options are EmpiricalCovariance, 
+                                  EllipticEnvelope, GraphicalLasso, GraphicalLassoCV, LedoitWolf, MinCovDet,
+                                  OAS, ShrunkCovariance""")
 
-        return technique_dict[technique](**kwargs).fit(return_mat.T).covariance_ * unit_time
-
-    def sample_cov(self, return_mat, method, unit_time, decay):
+    def sample_cov(self, return_mat, method, unit_time, weights=None, builtin=False, **kwargs):
 
         if method == 'default':
-            cov_mat = self.default_cov(return_mat, unit_time)
+            weights = np.repeat(np.divide(1, return_mat.shape[1]), repeats=return_mat.shape[1])
         elif method == 'exp':
-            cov_mat = self.exp_cov(return_mat, unit_time=unit_time, decay=decay)
-        elif method == 'garch':
-            cov_mat = self.garch_cov(return_mat, unit_time)
+            weights = CovGenerator.exp_factor(return_mat, **kwargs)
+        elif method == 'custom':
+            if weights is None:
+                warnings.warn("""Weight factor not defined. will use equal weight to calculate covariance.""")
+                weights = np.repeat(1 / return_mat.shape[1], repeats=return_mat.shape[1])
+            elif weights.shape[0] > return_mat.shape[1]:
+                warnings.warn(f"""Weight factor vector is longer than return series shape. Will only use {return_mat.shape[1]} values""")
+                weights = weights[:return_mat.shape[1]]
+            elif weights.shape[0] < return_mat.shape[1]:
+                warnings.warn(f"""Weight factor vector is shorter than return series shape. Will default remaining weights to 0""")
+                weights = np.pad(weights, (0, return_mat.shape[1] - weights.shape[0]), 'constant')
         else:
-            raise MethodException("Invalid Method, Valid options are: default, exp, garch")
-        return cov_mat
+            raise MethodException("""Invalid Method, Valid options are: default (equal weight), exp (exponential decay),
+                                    custom (custom weight)""" )
 
-    def semi_cov(self, return_mat, bm_return, assume_zero):
+        return CovGenerator.find_cov(return_mat, weights, builtin) * unit_time
+
+    def semi_cov(self, return_mat, bm_return=0.0001, assume_zero=False):
 
         _return_mat_copy = return_mat.copy()
 
@@ -74,33 +94,64 @@ class CovGenerator:
 
         return _return_mat_copy
 
-    def default_cov(self, return_mat, unit_time):
+    @staticmethod
+    def find_cov(return_mat, weight_factor, builtin):
 
         """
         Covariance Matrix without Exponential Decay
-        """
-        return np.cov(return_mat) * unit_time
 
-    def exp_cov(self, return_mat, decay, unit_time):
+        raw implementation as opposed to calling np.cov()
+        """
+        if builtin:
+            return np.cov(return_mat, aweights=weight_factor)
+
+        diff_mat = return_mat - np.mean(return_mat, axis=1, keepdims=True)
+        weight_mat = CovGenerator.calc_weight_mat(return_mat, weight_factor)
+        return np.dot(weight_mat * diff_mat, diff_mat.T)
+
+    @staticmethod
+    def calc_weight_mat(return_mat, weight_factor):
+        """
+
+        :param return_mat:
+        :param weight_factor:
+        :return:
+        """
+        weights = weight_factor/np.sum(weight_factor)
+        weight_mat = np.repeat(weights.reshape(1, -1), repeats=return_mat.shape[0], axis=0)
+        return weight_mat
+
+    @staticmethod
+    def exp_factor(return_mat, decay=0.94, span=30):
 
         """
         Covariance Matrix with Exponential Decay
         """
 
-        exp_weights = decay ** np.arange(0, return_mat.shape[1])
+        decay_factor = decay ** np.arange(0, return_mat.shape[1]//span + 1)
+        decay_factor = np.repeat(decay_factor, repeats=span)[:return_mat.shape[1]]
 
-        return np.cov(return_mat, aweights=exp_weights) * unit_time
+        return decay_factor
 
-    def garch_cov(self, return_mat):
-        pass
+        # for col in range(num_assets):
+        #     for row in range(col, num_assets):
+        #         cov_mat[col, row] = np.sum(
+        #             (return_mat[col, :] - return_mat[col, :].mean()) * \
+        #             (return_mat[row, :] - return_mat[row, :].mean()) * exp_weights
+        #         )
+        #
+        # return cov_mat + cov_mat.T - np.diag(cov_mat.diagonal())
 
-    def return_mat(self, corr=True, return_format='df', **kwargs):
+    def result(self, cov_mat=None, corr=True, return_format='df', **kwargs):
+
+        if cov_mat is None:
+            cov_mat = self.cov_mat
 
         if corr:
-            res_mat = self.cov_mat * np.dot(((np.diag(self.cov_mat)) ** -0.5).reshape(-1, 1),
-                                       ((np.diag(self.cov_mat)) ** -0.5).reshape(1, -1))
+            res_mat = cov_mat * np.dot(((np.diag(cov_mat)) ** -0.5).reshape(-1, 1),
+                                       ((np.diag(cov_mat)) ** -0.5).reshape(1, -1))
         else:
-            res_mat = self.cov_mat
+            res_mat = cov_mat
 
         df = pd.DataFrame(res_mat, index=self.assets, columns=self.assets)
 
