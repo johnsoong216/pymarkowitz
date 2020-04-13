@@ -23,10 +23,7 @@ class RetGenerator:
             self.assets = assets
             self.index = np.arange(0, len(price_data), 1)
 
-        self.return_mat = None
-        self.return_index = None
-
-    def calc_return(self, method, inplace=True, **kwargs):
+    def calc_return(self, method, ret_format=True, **kwargs):
 
         price_mat = self.price_mat
         index = self.index
@@ -49,39 +46,44 @@ class RetGenerator:
         else:
             raise MethodException("""Invalid Method. Valid Inputs: daily, rolling, collapse""")
 
-        if inplace:
-            self.return_mat = ret_mat
-            self.return_index = ret_idx
+        return_df = pd.DataFrame(ret_mat.T, columns=self.assets, index=ret_idx)
+
+        if ret_format == 'df':
+            return return_df
+        elif ret_format == 'raw':
+            return self.assets, ret_idx, ret_mat
         else:
-            return self.result(ret_mat, ret_idx)
+            raise FormatException("Invalid Format. Valid options are: df, raw")
+
 
     @staticmethod
-    def return_formula(price_mat, index, roll=False, window=30, log=False, step=5):
+    def return_formula(price_mat, index, roll=False, window=30, log=False):
 
         if roll:
             step = 1
             shift = window
         else:
-            shift = step
+            shift = window
+            step = window
 
         if not log:
             return ((price_mat/np.roll(price_mat, shift=shift, axis=1)) - 1)[:, shift::step], index[shift::step]
         return np.log((price_mat/np.roll(price_mat, shift=shift, axis=1)))[:, shift::step], index[shift::step]
 
-    def result(self, ret_mat=None, index=None, return_format='df', **kwargs):
-
-        if ret_mat is None:
-            ret_mat = self.return_mat
-        if index is None:
-            index = self.return_index
-
-        df = pd.DataFrame(ret_mat.T, columns=self.assets, index=index, **kwargs)
-
-        if return_format == 'df':
-            return df
-        elif return_format == 'dict':
-            return df.unstack().to_dict()
-        elif return_format == 'raw':
-            return self.assets, ret_mat, index
-        else:
-            raise FormatException("Invalid Format. Valid options are: df, dict, raw")
+    # def result(self, ret_mat=None, index=None, return_format='df', **kwargs):
+    #
+    #     if ret_mat is None:
+    #         ret_mat = self.return_mat
+    #     if index is None:
+    #         index = self.return_index
+    #
+    #     df = pd.DataFrame(ret_mat.T, columns=self.assets, index=index, **kwargs)
+    #
+    #     if return_format == 'df':
+    #         return df
+    #     elif return_format == 'dict':
+    #         return df.unstack().to_dict()
+    #     elif return_format == 'raw':
+    #         return self.assets, ret_mat, index
+    #     else:
+    #         raise FormatException("Invalid Format. Valid options are: df, dict, raw")

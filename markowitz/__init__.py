@@ -1,4 +1,4 @@
-from .CovGenerator import CovGenerator
+from .MomentGenerator import MomentGenerator
 from .RetGenerator import RetGenerator
 
 
