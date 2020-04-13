@@ -23,13 +23,13 @@ class RetGenerator:
             self.assets = assets
             self.index = np.arange(0, len(price_data), 1)
 
-    def calc_return(self, method, ret_format=True, **kwargs):
+    def calc_return(self, method, ret_format='df', **kwargs):
 
         price_mat = self.price_mat
         index = self.index
 
         if method == 'daily':
-            ret_mat, ret_idx = RetGenerator.return_formula(price_mat, index, window=1, step=1, roll=True, **kwargs)
+            ret_mat, ret_idx = RetGenerator.return_formula(price_mat, index, window=1, roll=True, **kwargs)
         elif method == 'rolling':
             ret_mat, ret_idx = RetGenerator.return_formula(price_mat, index, roll=True, **kwargs)
         elif method == 'collapse':
