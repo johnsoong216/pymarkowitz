@@ -1,9 +1,14 @@
+
+import math
+import warnings
+
 import numpy as np
 import pandas as pd
 import cvxpy as cp
-import math
-import warnings
+
 from .Exceptions import *
+from .ConstraintGen import ConstraintGen as ConstGen
+from .ObjectiveGen import ObjectiveGen as ObjGen
 
 
 
@@ -18,18 +23,21 @@ class ProblemGen:
 
         self.objective = None
         self.constraints = []
-        self.objective_dict = {}
-        self.constraint_dict = {}
+
+        self.obj_creator = ObjGen(self.weight_params, self.ret_vec, self.moment_mat, self.moment, self.assets)
+        self.const_creator = ConstGen(self.weight_params, self.ret_vec, self.moment_mat, self.moment, self.assets)
+        # self.objective_dict = {}
+        # self.constraint_dict = {}
 
     ### Add some quick shortcuts
 
     def add_objective(self, objective_type, **kwargs):
-        self.objective = self.objective_dict[objective_type](**kwargs)
+        self.objective = self.obj_creator.create_objective(objective_type, **kwargs)
 
     def add_constraint(self, constraint_type, **kwargs):
-        self.constraints += [self.constraint_dict[constraint_type](**kwargs)]
+        self.constraints += self.const_creator.create_constraint(constraint_type, **kwargs)
 
-    def clear_problem(self, clear_obj=True, clear_constraints=True):
+    def clear(self, clear_obj=True, clear_constraints=True):
 
         self.weight_params = cp.Variable(self.ret_vec.shape[0])
         self.weight_sols = None
@@ -39,17 +47,13 @@ class ProblemGen:
         if clear_obj:
             self.objective = None
 
-    def solve_problem(self, minimize):
+    def solve(self):
 
-        if minimize:
-            prob = cp.Problem(cp.Minimize(self.objective), self.constraints)
-        else:
-            prob = cp.Problem(cp.Maximize(self.objective), self.constraints)
-
-        if not (prob.is_dcp() and prob.is_dgp()):
-            raise OptimizeException(f"""The problem formulated is not {'convex' if minimize else 'concave'}""")
-
-        prob.solve()
+        prob = cp.Problem(self.objective, self.constraints)
+        try:
+            prob.solve()
+        except cp.DCPError():
+            raise OptimizeException(f"""The problem formulated is not convex if minimizing, concave if maximizing""")
 
         if "unbounded" in prob.status:
             raise OptimizeException("Unbounded Variables")
