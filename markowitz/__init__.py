@@ -1,4 +1,4 @@
-from .MomentGenerator import MomentGenerator
-from .RetGenerator import RetGenerator
+from .MomentGen import MomentGen
+from .ReturnGen import ReturnGen
 
 

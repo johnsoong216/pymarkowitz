@@ -5,7 +5,7 @@ import seaborn as sns
 from .Exceptions import *
 
 
-class RetGenerator:
+class ReturnGen:
 
     def __init__(self, price_data, assets=None):
 
@@ -29,11 +29,11 @@ class RetGenerator:
         index = self.index
 
         if method == 'daily':
-            ret_mat, ret_idx = RetGenerator.return_formula(price_mat, index, window=1, roll=True, **kwargs)
+            ret_mat, ret_idx = ReturnGen.return_formula(price_mat, index, window=1, roll=True, **kwargs)
         elif method == 'rolling':
-            ret_mat, ret_idx = RetGenerator.return_formula(price_mat, index, roll=True, **kwargs)
+            ret_mat, ret_idx = ReturnGen.return_formula(price_mat, index, roll=True, **kwargs)
         elif method == 'collapse':
-            ret_mat, ret_idx = RetGenerator.return_formula(price_mat, index, roll=False, **kwargs)
+            ret_mat, ret_idx = ReturnGen.return_formula(price_mat, index, roll=False, **kwargs)
         # May add later
         # elif method == 'week':
         #     pass

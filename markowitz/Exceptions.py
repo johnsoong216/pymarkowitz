@@ -5,4 +5,8 @@ class MethodException(Exception):
 class FormatException(Exception):
     pass
 
+class DimException(Exception):
+    pass
 
+class OptimizeException(Exception):
+    pass

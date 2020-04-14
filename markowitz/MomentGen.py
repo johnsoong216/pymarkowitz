@@ -6,7 +6,7 @@ import warnings
 from .Exceptions import *
 
 
-class MomentGenerator:
+class MomentGen:
 
     def __init__(self, return_data, assets=None):
 
@@ -44,7 +44,6 @@ class MomentGenerator:
     def calc_coskew_mat(self, semi=False, method='default', weights=None, bm_return=0.001, assume_zero=False, normalize=True, ret_format='df', **kwargs):
         return self.calc_comoment_mat(moment=3, semi=semi, method=method, weights=weights, bm_return=bm_return, assume_zero=assume_zero, normalize=normalize, ret_format=ret_format, **kwargs)
 
-
     def calc_cokurt_mat(self, semi=False, method='default', weights=None, bm_return=0.001, assume_zero=False, normalize=True, ret_format='df', **kwargs):
         cokurt_mat =  self.calc_comoment_mat(moment=4, semi=semi, method=method, weights=weights, bm_return=bm_return, assume_zero=assume_zero, normalize=normalize, ret_format=ret_format, **kwargs)
         return cokurt_mat
@@ -58,8 +57,8 @@ class MomentGenerator:
 
         weight_factor = self.construct_weight(method, return_mat, weights, **kwargs)
 
-        weight_mat = MomentGenerator.calc_weight_mat(return_mat, weight_factor)
-        comoment_mat = MomentGenerator.calc_moment_mat(moment, return_mat, weight_mat, normalize)
+        weight_mat = MomentGen.calc_weight_mat(return_mat, weight_factor)
+        comoment_mat = MomentGen.calc_moment_mat(moment, return_mat, weight_mat, normalize)
 
         if ret_format == 'df':
             return pd.DataFrame(comoment_mat, index=self.assets, columns=tuple(itertools.product(*[self.assets for i in range(moment - 1)])))
@@ -93,13 +92,13 @@ class MomentGenerator:
     def sample_cov(self, return_mat, method, unit_time, weights=None, builtin=False, **kwargs):
 
         weights = self.construct_weight(method, return_mat, weights, **kwargs)
-        return MomentGenerator.find_cov(return_mat, weights, builtin) * unit_time
+        return MomentGen.find_cov(return_mat, weights, builtin) * unit_time
 
     def construct_weight(self, method, return_mat, weights, **kwargs):
         if method == 'default':
             weights = np.repeat(np.divide(1, return_mat.shape[1]), repeats=return_mat.shape[1])
         elif method == 'exp':
-            weights = MomentGenerator.exp_factor(return_mat, **kwargs)
+            weights = MomentGen.exp_factor(return_mat, **kwargs)
         elif method == 'custom':
             if weights is None:
                 warnings.warn("""Weight factor not defined. will use equal weight to calculate covariance.""")
@@ -147,7 +146,7 @@ class MomentGenerator:
             return np.cov(return_mat, aweights=weight_factor)
 
         diff_mat = return_mat - np.mean(return_mat, axis=1, keepdims=True)
-        weight_mat = MomentGenerator.calc_weight_mat(return_mat, weight_factor)
+        weight_mat = MomentGen.calc_weight_mat(return_mat, weight_factor)
         return np.dot(weight_mat * diff_mat * (return_mat.shape[1]/(return_mat.shape[1] - 1)), diff_mat.T)
 
     @staticmethod
