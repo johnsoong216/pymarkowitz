@@ -48,21 +48,25 @@ class ProblemGen:
             self.objective = None
 
     def solve(self):
+        if type(self.objective) != np.ndarray:
+            prob = cp.Problem(self.objective, self.constraints)
 
-        prob = cp.Problem(self.objective, self.constraints)
-        try:
-            prob.solve()
-        except cp.DCPError():
-            raise OptimizeException(f"""The problem formulated is not convex if minimizing, concave if maximizing""")
+            try:
+                prob.solve()
+            except cp.DCPError():
+                raise OptimizeException(f"""The problem formulated is not convex if minimizing, concave if maximizing""")
 
-        if "unbounded" in prob.status:
-            raise OptimizeException("Unbounded Variables")
-        elif "infeasible" in prob.status:
-            raise OptimizeException("Infeasible Variables")
-        elif "inaccurate" in prob.status:
-            warnings.warn("Results may be inaccurate.")
+            if "unbounded" in prob.status:
+                raise OptimizeException("Unbounded Variables")
+            elif "infeasible" in prob.status:
+                raise OptimizeException("Infeasible Variables")
+            elif "inaccurate" in prob.status:
+                warnings.warn("Results may be inaccurate.")
 
-        self.weight_sols = self.weight_params.value
+            self.weight_sols = self.weight_params.value
+        else:
+            warnings.warn(f"""The problem formulated is not an optimization problem and is calculated numerically""")
+            self.weight_params = self.objective
 
     @staticmethod
     def init_checker(ret_data, moment_data, asset_names):

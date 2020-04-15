@@ -82,6 +82,8 @@ class ConstraintGen(MetricGen):
             top_holdings = self.ret_vec[0].shape
         return [cp.sum_largest(cp.abs(self.weight_param), top_holdings) <= top_concentration]
 
+
+
     ### Market Data Needed/Calculation Needed
     def market_neutral(self, bound):
 
@@ -90,42 +92,36 @@ class ConstraintGen(MetricGen):
                 market_cap_weight @ self.moment_mat @ self.weight_param <= bound[1]]
 
 
-    ### Portfolio Variance is easy to calculate but others are hard
-    def beta(self):
-        pass
+    # Return related
+    def expected_return_const(self, bound, time_scaling):
+        bound = self.construct_bound(bound, True, np.inf)
+        return [cp.power(1 + self.expected_return(), time_scaling) - 1 >= bound[0], cp.power(1 + self.expected_return(), time_scaling) - 1 <= bound[1]]
 
-    def risk_fraction(self):
-        pass
+    def sharpe_const(self, risk_free, bound):
+        bound = self.construct_bound(bound, True, np.inf)
+        return [self.sharpe(risk_free) >= bound[0], self.sharpe(risk_free) <= bound[1]]
 
-    def sortino(self):
-        pass
+    def beta_const(self, bound, individual_beta):
+        bound = self.construct_bound(bound, False, -0.1)
+        return [self.beta(individual_beta) >= bound[0], self.beta(individual_beta) <= bound[1]]
 
-    def calmar(self):
-        pass
+    def treynor_const(self, bound, risk_free, individual_beta):
+        bound = self.construct_bound(bound, True, np.inf)
+        return [self.treynor(risk_free, individual_beta) >= bound[0], self.treynor(risk_free, individual_beta) <= bound[1]]
 
-    def omega(self):
-        pass
+    def jenson_alpha_const(self, bound, risk_free, market_return, individual_beta):
+        bound = self.construct_bound(bound, True, np.inf)
+        return [self.jenson_alpha(risk_free, market_return, individual_beta) >= bound[0], self.jenson_alpha(risk_free, market_return, individual_beta) <= bound[1]]
 
-    def treynor(self):
-        pass
 
-    def sharpe(self):
-        pass
-
-    def tracking_error(self):
-        pass
-
-    def expected_return_const(self, bound):
-        return [self.expected_return() >= bound[0], self.expected_return() <= bound[1]]
-
+    # Risk related constraints
     def volatility_const(self, bound):
         return [self.volatility() >= bound[0], self.volatility <= bound[1]]
 
     def variance_const(self, bound):
         if self.moment != 2:
             raise DimException("Did not pass in a correlation/covariance matrix")
-        return [self.variance() >= bound[0],
-                self.variance() <= bound[1]]
+        return [self.variance() >= bound[0], self.variance() <= bound[1]]
 
     def skew_const(self, bound):
         if self.moment != 3:
@@ -133,43 +129,22 @@ class ConstraintGen(MetricGen):
         return [self.higher_moment(3) >= bound[0], self.higher_moment(3) <= bound[1]]
 
     def kurt_const(self, bound):
-        if self.moment != 5:
+        if self.moment != 4:
             raise DimException("Did not pass in a cokurtosis matrix")
         return [self.higher_moment(4) >= bound[0], self.higher_moment(4) <= bound[1]]
 
+    def moment_const(self, bound):
+        return [self.higher_moment(self.moment) >= bound[0], self.higher_moment(self.moment) <= bound[1]]
 
 
-
-
-
-
-
-
-    # def __init__(self, ret_data, moment_data, moment, weight_params):
-    #
-    #     self.ret_data = ret_data
-    #     self.moment_data = moment_data
-    #     self.moment = moment
-    #     self.weight_params = weight_params
-    #
-    #     self.objective = None
-    #     self.constraints = []
-    #
-    #     self.constraint_dict = {}
-    #     self.objective_dict = {}
-    #
-    #
-    # def add_objective(self, obj_type, **kwargs):
-    #     self.objective = self.objective_dict[obj_type](**kwargs)
-    #
-    # def add_constraint(self, const_type, **kwargs):
-    #     self.constraints += self.constraint_dict[const_type](**kwargs)
-
-
-
-
-
-
+    def construct_bound(self, bound, minimum, opposite_value):
+        if isinstance(bound, (int, float)):
+            warnings.warn(f"""Only one bound is given, will set the {'maximum' if minimum else 'minimum'} value to be {opposite_value}""")
+            if minimum:
+                bound = (bound, opposite_value)
+            else:
+                bound = (opposite_value, bound)
+        return bound
 
 
 
