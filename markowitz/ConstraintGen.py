@@ -17,16 +17,24 @@ class ConstraintGen(MetricGen):
 
     def __init__(self, weight_param, ret_vec, moment_mat, moment, assets):
 
-        # self.weight_param = weight_param
-        # self.ret_vec = ret_vec
-        # self.moment_mat = moment_mat
-        # self.moment = moment
         super().__init__(weight_param, ret_vec, moment_mat, moment, assets)
-
         self.method_dict = {"weight": self.weight,
                             "leverage": self.leverage,
-                            "max_num_assets": self.num_assets,
-                            "concentration": self.concentration}
+                            "num_assets": self.num_assets,
+                            "concentration": self.concentration,
+                            "market_neutral": self.market_neutral,
+                            "expected_return": self.expected_return_const,
+                            "sharpe": self.sharpe_const,
+                            "beta": self.beta_const,
+                            "treynor": self.treynor_const,
+                            "jenson_alpha": self.jenson_alpha_const,
+                            "volatility": self.volatility_const,
+                            "variance": self.variance_const,
+                            "skew": self.skew_const,
+                            "kurt": self.kurt_const,
+                            "moment": self.moment_const}
+
+
 
     def create_constraint(self, constraint_type, **kwargs):
         return self.method_dict[constraint_type](**kwargs)
@@ -65,23 +73,22 @@ class ConstraintGen(MetricGen):
         constraints += [cp.sum(self.weight_param) == total_weight]
         return constraints
 
-    def leverage(self, upper_bound):
-        return [cp.norm(self.weight_param, 1) == upper_bound]
+    def leverage(self, leverage):
+        return [cp.norm(self.weight_param, 1) <= leverage]
 
-    def num_assets(self, max_num_assets):
-        if self.ret_vec[0].shape <= max_num_assets:
+    def num_assets(self, num_assets):
+        if self.ret_vec.shape[0] <= num_assets:
             warnings.warn("""The number of assets to hold exceeds the number of assets available, 
             default to a 1 asset only scenario""")
-            max_num_assets = self.ret_vec[0].shape - 1
-        return [cp.sum_smallest(self.weight_param, self.ret_vec[0].shape - max_num_assets) == 0]
+            num_assets = self.ret_vec.shape[0] - 1
+        return [cp.sum_smallest(cp.abs(self.weight_param), self.ret_vec.shape[0] - num_assets) <= 0.0001]
 
     def concentration(self, top_holdings, top_concentration):
-        if self.ret_vec[0].shape <= top_holdings:
+        if self.ret_vec.shape[0] <= top_holdings:
             warnings.warn("""Number of Top Holdings Exceeds Total Available Assets. 
             Will default top_holdings to be number of holdings available""")
-            top_holdings = self.ret_vec[0].shape
-        return [cp.sum_largest(cp.abs(self.weight_param), top_holdings) <= top_concentration]
-
+            top_holdings = self.ret_vec.shape[0]
+        return [cp.sum_largest(cp.norm(self.weight_param, 1), top_holdings) <= top_concentration]
 
 
     ### Market Data Needed/Calculation Needed
@@ -90,7 +97,6 @@ class ConstraintGen(MetricGen):
         market_cap_weight = self.market_cap_data()
         return [market_cap_weight @ self.moment_mat @ self.weight_param >= bound[0],
                 market_cap_weight @ self.moment_mat @ self.weight_param <= bound[1]]
-
 
     # Return related
     def expected_return_const(self, bound, time_scaling):
@@ -112,7 +118,6 @@ class ConstraintGen(MetricGen):
     def jenson_alpha_const(self, bound, risk_free, market_return, individual_beta):
         bound = self.construct_bound(bound, True, np.inf)
         return [self.jenson_alpha(risk_free, market_return, individual_beta) >= bound[0], self.jenson_alpha(risk_free, market_return, individual_beta) <= bound[1]]
-
 
     # Risk related constraints
     def volatility_const(self, bound):

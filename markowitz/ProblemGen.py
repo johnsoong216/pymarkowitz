@@ -1,6 +1,7 @@
 
 import math
 import warnings
+from collections import OrderedDict
 
 import numpy as np
 import pandas as pd
@@ -22,17 +23,18 @@ class ProblemGen:
         self.weight_sols = None
 
         self.objective = None
+        self.objective_sol = None
         self.constraints = []
 
         self.obj_creator = ObjGen(self.weight_params, self.ret_vec, self.moment_mat, self.moment, self.assets)
         self.const_creator = ConstGen(self.weight_params, self.ret_vec, self.moment_mat, self.moment, self.assets)
-        # self.objective_dict = {}
-        # self.constraint_dict = {}
 
     ### Add some quick shortcuts
 
     def add_objective(self, objective_type, **kwargs):
-        self.objective = self.obj_creator.create_objective(objective_type, **kwargs)
+        obj, const = self.obj_creator.create_objective(objective_type, **kwargs)
+        self.objective = obj
+        self.constraints += const
 
     def add_constraint(self, constraint_type, **kwargs):
         self.constraints += self.const_creator.create_constraint(constraint_type, **kwargs)
@@ -44,17 +46,26 @@ class ProblemGen:
 
         if clear_constraints:
             self.constraints = []
+            self.constraint_sols = []
         if clear_obj:
             self.objective = None
+            self.objective_sol = []
 
     def solve(self):
         if type(self.objective) != np.ndarray:
             prob = cp.Problem(self.objective, self.constraints)
-
+            return prob
             try:
-                prob.solve()
-            except cp.DCPError():
-                raise OptimizeException(f"""The problem formulated is not convex if minimizing, concave if maximizing""")
+                ans = prob.solve()
+            except cp.DCPError:
+                try:
+                    ans = prob.solve(qcp=True)
+                except (cp.DCPError, cp.SolverError):
+                    try:
+                        ans = prob.solve(solver=cp.SCS, qcp=True)
+                    except cp.DCPError:
+                        raise OptimizeException(f"""The problem formulated is not convex if minimizing, 
+                    concave if maximizing""")
 
             if "unbounded" in prob.status:
                 raise OptimizeException("Unbounded Variables")
@@ -63,10 +74,12 @@ class ProblemGen:
             elif "inaccurate" in prob.status:
                 warnings.warn("Results may be inaccurate.")
 
-            self.weight_sols = self.weight_params.value
+            self.objective_sol = ans
+            self.weight_sols = dict(zip(self.assets, self.obj_creator.weight_param.value.round(5)))
+            self.weight_sols_2 = dict(zip(self.assets, self.const_creator.weight_param.value.round(5)))
         else:
             warnings.warn(f"""The problem formulated is not an optimization problem and is calculated numerically""")
-            self.weight_params = self.objective
+            self.weight_sols = dict(zip(self.assets, self.objective))
 
     @staticmethod
     def init_checker(ret_data, moment_data, asset_names):
@@ -90,7 +103,7 @@ class ProblemGen:
         else:
             raise FormatException("""Moment Matrix must be a pd.DataFrame or np.ndarray object""")
 
-        moment = math.log(moment_mat.shape[1], moment_mat.shape[0])
+        moment = math.log(moment_mat.shape[1], moment_mat.shape[0]) + 1
 
         if asset_names:
             assets = asset_names

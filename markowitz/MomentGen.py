@@ -39,6 +39,36 @@ class MomentGen:
             return self.assets, cov_mat
         else:
             raise FormatException("Invalid Format. Valid options are: df, raw")
+            
+    def calc_beta(self, beta_vec, technique="sample", semi=False, method='default', builtin=False, weights=None, ret_format='df', **kwargs):
+
+        if isinstance(beta_vec, (pd.DataFrame, pd.Series)):
+            beta_vec = beta_vec.values.T
+        elif isinstance(beta_vec, np.ndarray):
+            beta_vec = beta_vec.reshape(1, -1)
+
+        if beta_vec.shape[1] != self.return_mat.shape[1]:
+            raise DimException("""Dimension of benchmark (beta） data is not in the same length as the return data""")
+        
+        return_mat = np.concatenate([self.return_mat, beta_vec])
+
+        if semi:
+            return_mat = self.semi_cov(return_mat, bm_return=beta_vec.mean(), assume_zero=False)
+
+        if technique == "sample":
+            cov_mat = self.sample_cov(return_mat, method, unit_time=1, builtin=builtin, weights=weights, **kwargs)
+        else:
+            cov_mat = self.sk_technique(return_mat, technique, unit_time=1, **kwargs)
+
+
+        beta_arr = cov_mat[-1, :-1]/(np.std(self.return_mat, ddof=1, axis=1)**2)
+
+        if ret_format == 'df':
+            return pd.DataFrame(beta_arr, index=self.assets, columns=['beta'])
+        elif ret_format == 'raw':
+            return self.assets, beta_arr
+        else:
+            raise FormatException("Invalid Format. Valid Options are: df, raw")
 
 
     def calc_coskew_mat(self, semi=False, method='default', weights=None, bm_return=0.001, assume_zero=False, normalize=True, ret_format='df', **kwargs):

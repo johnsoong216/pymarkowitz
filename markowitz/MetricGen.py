@@ -23,7 +23,6 @@ class MetricGen:
         self.assets = assets
 
     # Involves Risk Matrix Only
-
     def correlation(self):
         # Assume Covariance Matrix is passed in
         corr_mat = self.moment_mat * np.dot(((np.diag(self.moment_mat)) ** -0.5).reshape(-1, 1),
@@ -62,7 +61,8 @@ class MetricGen:
 
     # Sortino if passed in a semivariance matrix
     def sharpe(self, risk_free):
-        return (self.expected_return() - risk_free)/self.variance()
+
+        return (self.expected_return() - risk_free)/self.volatility()
 
     def beta(self, individual_beta):
         return self.weight_param.T * individual_beta
@@ -95,8 +95,6 @@ class MetricGen:
     def market_cap_weight(self, leverage):
         market_cap_info = self.market_cap_data()
         return market_cap_info/np.sum(market_cap_info) * leverage
-
-
 
     # Helper Function
     def market_cap_data(self):

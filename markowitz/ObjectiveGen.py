@@ -12,18 +12,25 @@ class ObjectiveGen(MetricGen):
     def __init__(self, weight_param, ret_vec, moment_mat, moment, assets):
 
         super().__init__(weight_param, ret_vec, moment_mat, moment, assets)
-        # self.weight_param = weight_param
-        # self.ret_vec = ret_vec
-        # self.moment_mat = moment_mat
-        # self.moment = moment
-
-        self.method_dict = {"min_variance": self.min_variance}
+        self.method_dict = {"efficient_frontier": self.efficient_frontier,
+                            "equal_risk_parity": self.equal_risk_parity,
+                            "min_correlation": self.min_correlation,
+                            "min_volatility": self.min_volatility,
+                            "min_variance": self.min_variance,
+                            "min_skew": self.min_skew,
+                            "min_kurt": self.min_kurt,
+                            "min_moment": self.min_moment,
+                            "max_diversification": self.max_diversification,
+                            "max_sharpe": self.max_sharpe,
+                            "min_beta": self.min_beta,
+                            "max_treynor": self.max_treynor,
+                            "max_jenson_alpha": self.max_jenson_alpha}
 
     def create_objective(self, objective_type, **kwargs):
         return self.method_dict[objective_type](**kwargs)
 
     # Classic Equation
-    def efficient_frontier(self, aversion):
+    def efficient_frontier(self, aversion=1):
         return cp.Maximize(self.expected_return() - aversion * self.variance())
 
     # Risk Related
@@ -66,9 +73,3 @@ class ObjectiveGen(MetricGen):
         return cp.Maximize(self.jenson_alpha(risk_free, market_return, individual_beta))
 
 
-
-    # def __init__(self, ret_data, moment_data, moment):
-    #     self.ret_data = ret_data
-    #     self.moment_data = moment_data
-    #     self.moment = moment
-    #     self.constraints = []
