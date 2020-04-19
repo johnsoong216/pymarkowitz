@@ -26,50 +26,50 @@ class ObjectiveGen(MetricGen):
                             "max_treynor": self.max_treynor,
                             "max_jenson_alpha": self.max_jenson_alpha}
 
-    def create_objective(self, objective_type, **kwargs):
-        return self.method_dict[objective_type](**kwargs)
+    def create_objective(self, objective_type):
+        return self.method_dict[objective_type]
 
     # Classic Equation
-    def efficient_frontier(self, aversion=1):
-        return cp.Maximize(self.expected_return() - aversion * self.variance())
+    def efficient_frontier(self, w, aversion=1):
+        return -(self.expected_return(w) - aversion * self.variance(w))
 
     # Risk Related
-    def equal_risk_parity(self):
-        return cp.Minimize(self.risk_parity())
+    def equal_risk_parity(self, w):
+        return self.risk_parity(w)
 
-    def min_correlation(self):
-        return cp.Minimize(self.correlation())
+    def min_correlation(self, w):
+        return self.correlation(w)
 
-    def min_volatility(self):
-        return cp.Minimize(self.volatility())
+    def min_volatility(self, w):
+        return self.volatility(w)
 
-    def min_variance(self):
-        return cp.Minimize(self.variance())
+    def min_variance(self, w):
+        return self.variance(w)
 
-    def min_skew(self):
-        return cp.Minimize(self.higher_moment(3))
+    def min_skew(self, w):
+        return self.min_moment(w)
 
-    def min_kurt(self):
-        return cp.Minimize(self.higher_moment(4))
+    def min_kurt(self, w):
+        return self.min_moment(w)
 
-    def min_moment(self):
-        return cp.Minimize(self.higher_moment(self.moment))
+    def min_moment(self, w):
+        return self.higher_moment(w)
 
-    def max_diversification(self):
-        return cp.Maximize(self.diversification())
+    def max_diversification(self, w):
+        return -self.diversification(w)
 
     # Metrics related
-    def max_sharpe(self, risk_free):
-        return cp.Maximize(self.sharpe(risk_free))
+    def max_sharpe(self, w, risk_free):
+        return -self.sharpe(w, risk_free)
 
     # Make beta close to zero
-    def min_beta(self, individual_beta):
-        return cp.Minimize(cp.abs(self.beta(individual_beta)))
+    def min_beta(self, w, individual_beta):
+        return -np.abs(self.beta(w, individual_beta))
 
-    def max_treynor(self, risk_free, individual_beta):
-        return cp.Maximize(self.treynor(risk_free, individual_beta))
+    def max_treynor(self, w, risk_free, individual_beta):
+        return -self.treynor(w, risk_free, individual_beta)
 
-    def max_jenson_alpha(self, risk_free, market_return, individual_beta):
-        return cp.Maximize(self.jenson_alpha(risk_free, market_return, individual_beta))
+    def max_jenson_alpha(self, w, risk_free, market_return, individual_beta):
+        return -self.jenson_alpha(w, risk_free, market_return, individual_beta)
 
 

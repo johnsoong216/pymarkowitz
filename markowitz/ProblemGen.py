@@ -6,6 +6,7 @@ from collections import OrderedDict
 import numpy as np
 import pandas as pd
 import cvxpy as cp
+from scipy.optimize import minimize
 
 from .Exceptions import *
 from .ConstraintGen import ConstraintGen as ConstGen
@@ -19,12 +20,16 @@ class ProblemGen:
 
         self.ret_vec, self.moment_mat, self.assets, self.moment = ProblemGen.init_checker(ret_data, moment_data,
                                                                                          asset_names)
-        self.weight_params = cp.Variable(self.ret_vec.shape[0])
+        # self.weight_params = cp.Variable(self.ret_vec.shape[0])
+        # self.weight_params =
+        self.weight_params = None
         self.weight_sols = None
 
         self.objective = None
         self.objective_sol = None
+        self.objective_args = None
         self.constraints = []
+        self.bounds = list(zip(np.repeat(0, self.ret_vec.shape[0]), np.repeat(1, self.ret_vec.shape[0])))
 
         self.obj_creator = ObjGen(self.weight_params, self.ret_vec, self.moment_mat, self.moment, self.assets)
         self.const_creator = ConstGen(self.weight_params, self.ret_vec, self.moment_mat, self.moment, self.assets)
@@ -32,12 +37,19 @@ class ProblemGen:
     ### Add some quick shortcuts
 
     def add_objective(self, objective_type, **kwargs):
-        obj, const = self.obj_creator.create_objective(objective_type, **kwargs)
-        self.objective = obj
-        self.constraints += const
+
+        self.objective = self.obj_creator.create_objective(objective_type)
+        self.objective_args = tuple(kwargs.values())
 
     def add_constraint(self, constraint_type, **kwargs):
-        self.constraints += self.const_creator.create_constraint(constraint_type, **kwargs)
+        if constraint_type == "weight":
+            bound, total = self.const_creator.create_constraint(constraint_type, **kwargs)
+            # print(bound)
+            # print(total)
+            self.bounds = bound
+            self.constraints += total
+        else:
+            self.constraints += self.const_creator.create_constraint(constraint_type, **kwargs)
 
     def clear(self, clear_obj=True, clear_constraints=True):
 
@@ -46,37 +58,41 @@ class ProblemGen:
 
         if clear_constraints:
             self.constraints = []
-            self.constraint_sols = []
         if clear_obj:
             self.objective = None
-            self.objective_sol = []
 
     def solve(self):
         if type(self.objective) != np.ndarray:
-            prob = cp.Problem(self.objective, self.constraints)
-            return prob
-            try:
-                ans = prob.solve()
-            except cp.DCPError:
-                try:
-                    ans = prob.solve(qcp=True)
-                except (cp.DCPError, cp.SolverError):
-                    try:
-                        ans = prob.solve(solver=cp.SCS, qcp=True)
-                    except cp.DCPError:
-                        raise OptimizeException(f"""The problem formulated is not convex if minimizing, 
-                    concave if maximizing""")
+            # print(self.bounds)
+            # print(self.bounds)
+            # print(self.constraints)
+            res = minimize(self.objective, x0=np.random.uniform(size=self.ret_vec.shape[0]),
+                           constraints=self.constraints, bounds=self.bounds, args=self.objective_args)
+            # if not res.success:
+            #     raise OptimizeException("""Optimization has failed. Please adjust parameters""")
+            print(res)
+            # try:
+            #     ans = prob.solve()
+            # except cp.DCPError:
+            #     try:
+            #         ans = prob.solve(qcp=True)
+            #     except (cp.DCPError, cp.SolverError):
+            #         try:
+            #             ans = prob.solve(solver=cp.SCS, qcp=True)
+            #         except cp.DCPError:
+            #             raise OptimizeException(f"""The problem formulated is not convex if minimizing,
+            #         concave if maximizing""")
+            #
+            # if "unbounded" in prob.status:
+            #     raise OptimizeException("Unbounded Variables")
+            # elif "infeasible" in prob.status:
+            #     raise OptimizeException("Infeasible Variables")
+            # elif "inaccurate" in prob.status:
+            #     warnings.warn("Results may be inaccurate.")
 
-            if "unbounded" in prob.status:
-                raise OptimizeException("Unbounded Variables")
-            elif "infeasible" in prob.status:
-                raise OptimizeException("Infeasible Variables")
-            elif "inaccurate" in prob.status:
-                warnings.warn("Results may be inaccurate.")
-
-            self.objective_sol = ans
-            self.weight_sols = dict(zip(self.assets, self.obj_creator.weight_param.value.round(5)))
-            self.weight_sols_2 = dict(zip(self.assets, self.const_creator.weight_param.value.round(5)))
+            self.weight_sols = res.x
+            # self.weight_sols = dict(zip(self.assets, self.obj_creator.weight_param.value.round(5)))
+            # self.weight_sols_2 = dict(zip(self.assets, self.const_creator.weight_param.value.round(5)))
         else:
             warnings.warn(f"""The problem formulated is not an optimization problem and is calculated numerically""")
             self.weight_sols = dict(zip(self.assets, self.objective))

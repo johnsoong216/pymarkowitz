@@ -49,7 +49,7 @@ class MomentGen:
 
         if beta_vec.shape[1] != self.return_mat.shape[1]:
             raise DimException("""Dimension of benchmark (beta） data is not in the same length as the return data""")
-        
+
         return_mat = np.concatenate([self.return_mat, beta_vec])
 
         if semi:
