@@ -40,10 +40,10 @@ class MomentGen:
         else:
             raise FormatException("Invalid Format. Valid options are: df, raw")
             
-    def calc_beta(self, beta_vec, technique="sample", semi=False, method='default', builtin=False, weights=None, ret_format='df', **kwargs):
+    def calc_beta(self, beta_vec, technique="sample", semi=False, method='default', builtin=False, weights=None, ret_format='series', **kwargs):
 
         if isinstance(beta_vec, (pd.DataFrame, pd.Series)):
-            beta_vec = beta_vec.values.T
+            beta_vec = beta_vec.values.T.reshape(1, -1)
         elif isinstance(beta_vec, np.ndarray):
             beta_vec = beta_vec.reshape(1, -1)
 
@@ -51,6 +51,7 @@ class MomentGen:
             raise DimException("""Dimension of benchmark (beta） data is not in the same length as the return data""")
 
         return_mat = np.concatenate([self.return_mat, beta_vec])
+        # print(return_mat[-1, :])
 
         if semi:
             return_mat = self.semi_cov(return_mat, bm_return=beta_vec.mean(), assume_zero=False)
@@ -60,15 +61,19 @@ class MomentGen:
         else:
             cov_mat = self.sk_technique(return_mat, technique, unit_time=1, **kwargs)
 
+        # print(cov_mat)
+        # print(np.std(self.return_mat, ddof=1, axis=1))
+        # print(np.std(self.return_mat, ddof=1, axis=1).shape)
+        # print(cov_mat[-1, :-1].shape)
+        # return cov_mat[-1, :
+        beta_arr = cov_mat[-1, :-1]/cov_mat[-1, -1]
 
-        beta_arr = cov_mat[-1, :-1]/(np.std(self.return_mat, ddof=1, axis=1)**2)
-
-        if ret_format == 'df':
-            return pd.DataFrame(beta_arr, index=self.assets, columns=['beta'])
+        if ret_format == 'series':
+            return pd.Series(beta_arr, index=self.assets)
         elif ret_format == 'raw':
             return self.assets, beta_arr
         else:
-            raise FormatException("Invalid Format. Valid Options are: df, raw")
+            raise FormatException("Invalid Format. Valid Options are: series, raw")
 
 
     def calc_coskew_mat(self, semi=False, method='default', weights=None, bm_return=0.001, assume_zero=False, normalize=True, ret_format='df', **kwargs):

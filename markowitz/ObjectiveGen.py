@@ -9,9 +9,9 @@ from .MetricGen import MetricGen
 
 class ObjectiveGen(MetricGen):
 
-    def __init__(self, weight_param, ret_vec, moment_mat, moment, assets):
+    def __init__(self, ret_vec, moment_mat, moment, assets, beta_vec):
 
-        super().__init__(weight_param, ret_vec, moment_mat, moment, assets)
+        super().__init__(ret_vec, moment_mat, moment, assets, beta_vec)
         self.method_dict = {"efficient_frontier": self.efficient_frontier,
                             "equal_risk_parity": self.equal_risk_parity,
                             "min_correlation": self.min_correlation,
@@ -20,17 +20,24 @@ class ObjectiveGen(MetricGen):
                             "min_skew": self.min_skew,
                             "min_kurt": self.min_kurt,
                             "min_moment": self.min_moment,
+                            "max_return": self.max_return,
                             "max_diversification": self.max_diversification,
                             "max_sharpe": self.max_sharpe,
                             "min_beta": self.min_beta,
                             "max_treynor": self.max_treynor,
-                            "max_jenson_alpha": self.max_jenson_alpha}
+                            "max_jenson_alpha": self.max_jenson_alpha,
+                            "inverse_volatility": self.inverse_volatility,
+                            "inverse_variance": self.inverse_variance,
+                            "equal_weight": self.equal_weight,
+                            "market_cap_weight": self.market_cap_weight}
 
-    def create_objective(self, objective_type):
+    def create_objective(self, objective_type, **kwargs):
+        if objective_type in ["equal_weight", "market_cap_weight", "inverse_volatility", "inverse_variance"]:
+            return self.method_dict[objective_type](**kwargs)
         return self.method_dict[objective_type]
 
     # Classic Equation
-    def efficient_frontier(self, w, aversion=1):
+    def efficient_frontier(self, w, aversion):
         return -(self.expected_return(w) - aversion * self.variance(w))
 
     # Risk Related
@@ -58,18 +65,22 @@ class ObjectiveGen(MetricGen):
     def max_diversification(self, w):
         return -self.diversification(w)
 
+    # Return related
+    def max_return(self, w):
+        return -self.expected_return(w)
+
     # Metrics related
     def max_sharpe(self, w, risk_free):
         return -self.sharpe(w, risk_free)
 
     # Make beta close to zero
-    def min_beta(self, w, individual_beta):
-        return -np.abs(self.beta(w, individual_beta))
+    def min_beta(self, w):
+        return np.sqrt(np.square(self.beta(w, self.beta_vec)))
 
-    def max_treynor(self, w, risk_free, individual_beta):
-        return -self.treynor(w, risk_free, individual_beta)
+    def max_treynor(self, w, risk_free):
+        return -self.treynor(w, risk_free, self.beta_vec)
 
-    def max_jenson_alpha(self, w, risk_free, market_return, individual_beta):
-        return -self.jenson_alpha(w, risk_free, market_return, individual_beta)
+    def max_jenson_alpha(self, w, risk_free, market_return):
+        return -self.jenson_alpha(w, risk_free, market_return, self.beta_vec)
 
 

@@ -14,13 +14,42 @@ class MetricGen:
 
 
 
-    def __init__(self, weight_param, ret_vec, moment_mat, moment, assets):
+    def __init__(self, ret_vec, moment_mat, moment, assets, beta_vec):
 
-        # self.weight_param = weight_param
         self.ret_vec = ret_vec
         self.moment_mat = moment_mat
-        self.moment = moment
+        self.moment = int(moment)
         self.assets = assets
+        self.beta_vec = beta_vec
+
+        self.method_dict = {"leverage": self.leverage,
+                            "num_assets": self.num_assets,
+                            "concentration": self.concentration,
+                            "correlation": self.correlation,
+                            "diversification": self.diversification,
+                            "variance": self.variance,
+                            "volatility": self.volatility,
+                            "skew": self.higher_moment,
+                            "kurt": self.higher_moment,
+                            "moment": self.higher_moment,
+                            "risk_parity": self.risk_parity,
+                            "expected_return": self.expected_return,
+                            "beta": self.beta,
+                            "treynor": self.treynor,
+                            "jenson_alpha": self.jenson_alpha}
+
+    # Weight Related
+    def leverage(self, w):
+        return np.sum(np.sqrt(np.square(w)))
+
+    def num_assets(self, w):
+        return len(w[np.round(w, 3) != 0])
+
+    def concentration(self, w, top_holdings):
+        return -np.sum(np.partition(-np.sqrt(np.square(w)), top_holdings)[:top_holdings])/np.sum(np.sqrt(np.square(w)))
+            # return [{"type": "ineq", "fun": lambda w: np.sum(
+            #     np.partition(-np.sqrt(np.square(w)), top_holdings)[:top_holdings]) / np.sum(
+            #     np.sqrt(np.square(w))) + top_concentration}]
 
     # Involves Risk Only
     def correlation(self, w):
@@ -49,6 +78,9 @@ class MetricGen:
         temp = w
         for iteration in range(self.moment - 2):
             temp = np.kron(w, temp)
+            # print(temp.shape)
+            # print(self.moment_mat.shape)
+            # print(w.shape)
 
         return w @ self.moment_mat @ temp
 
