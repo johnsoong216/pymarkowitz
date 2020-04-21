@@ -1,4 +1,6 @@
-
+"""
+This module holds all Exceptions
+"""
 class MethodException(Exception):
     pass
 
