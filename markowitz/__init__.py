@@ -1,5 +1,5 @@
-from .MomentGen import MomentGen
-from .ReturnGen import ReturnGen
-from .ProblemGen import ProblemGen
+from .Moments import MomentGenerator
+from .Returns import ReturnGenerator
+from .Optimizer import Optimizer
 
 

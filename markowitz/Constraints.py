@@ -1,19 +1,9 @@
-import math
-import warnings
-
-import numpy as np
-import pandas as pd
-import cvxpy as cp
-from scipy.optimize import *
-import pandas_datareader as data
-
-from .Exceptions import *
-from .MetricGen import *
+from .Metrics import *
 
 ### https://www.portfolioprobe.com/features/constraints/
 
 
-class ConstraintGen(MetricGen):
+class ConstraintGenerator(MetricGenerator):
 
 
     def __init__(self, ret_vec, moment_mat, moment, assets, beta_vec):
@@ -39,31 +29,8 @@ class ConstraintGen(MetricGen):
 
     # Weight Only
     def weight(self, weight_bound, leverage): # Checked
-        individual_bound = (0,1)
-        if isinstance(weight_bound, (list, tuple)):
-            if isinstance(weight_bound[0], (list, tuple)):
-                if all([len(ind_weights) == 2 for ind_weights in weight_bound]) and len(weight_bound) == self.ret_vec.shape[0]:
-                    weight_bound = np.array(weight_bound)
-                else:
-                    raise DimException("""If specifying weight for each individual asset, must be passed in pairs and 
-                                            its length must equal the number of assets""")
-            if isinstance(weight_bound[0], (float, int)):
-                # constraints += [self.weight_param >= weight_bound[0]]
-                # constraints += [self.weight_param <= weight_bound[1]]
-                individual_bound = list(zip(np.repeat(weight_bound[0], self.ret_vec.shape[0]), np.repeat(weight_bound[1], self.ret_vec.shape[0])))
-            else:
-                raise FormatException("""Please pass in weight boundaries in an accepted format. List/Tuple/Np.ndarray""")
-        if isinstance(weight_bound, np.ndarray):
-            if weight_bound.ndim == 1:
-                individual_bound = list(zip(np.repeat(weight_bound[0], self.ret_vec.shape[0]), np.repeat(weight_bound[1], self.ret_vec.shape[0])))
-
-            elif weight_bound.ndim == 2:
-                if weight_bound.shape != (self.ret_vec.shape[0], 2):
-                    raise DimException("Dimension of Weights does not match number of assets")
-                individual_bound = list(zip(weight_bound[:, 0], weight_bound[:, 1]))
-
-            else:
-                raise DimException("Dimension of Weight Bound Array must be 1/2")
+        init_bound = (0,1)
+        individual_bound = ConstraintGenerator.construct_weight_bound(self.ret_vec.shape[0], init_bound, weight_bound)
 
         # total_bound = [{'type': 'eq', 'fun': lambda w:  np.sum(w) - total_weight}]
         total_leverage = [{'type': 'eq', 'fun': lambda w: -self.leverage(w) + leverage}]
@@ -105,7 +72,7 @@ class ConstraintGen(MetricGen):
 
     # Return related
     def expected_return_const(self, bound): # Checked
-        bound = self.construct_bound(bound, True, 10)
+        bound = ConstraintGenerator.construct_const_bound(bound, True, 10)
         # print(lambda w: self.expected_return(w) - bound[0])
         return [{"type": "ineq", "fun": lambda w: self.expected_return(w) - bound[0]},
                 {"type": "ineq", "fun": lambda w: -self.expected_return(w) + bound[1]}]
@@ -115,33 +82,33 @@ class ConstraintGen(MetricGen):
         # return [cp.power(1 + self.expected_return(), time_scaling) - 1 >= bound[0], cp.power(1 + self.expected_return(), time_scaling) - 1 <= bound[1]]
 
     def sharpe_const(self, risk_free, bound):
-        bound = self.construct_bound(bound, True, 10)
+        bound = ConstraintGenerator.construct_const_bound(bound, True, 10)
 
         return [{"type": "ineq", "fun": lambda w: self.sharpe(w, risk_free) - bound[0]},
                 {"type": "ineq", "fun": lambda w: -self.sharpe(w, risk_free) + bound[1]}]
         # return [self.sharpe(risk_free) >= bound[0], self.sharpe(risk_free) <= bound[1]]
 
     def beta_const(self, bound):
-        bound = self.construct_bound(bound, False, 1)
+        bound = ConstraintGenerator.construct_const_bound(bound, False, 1)
         # return [self.beta(self.beta_vec) >= bound[0], self.beta(self.beta_vec) <= bound[1]]
         return [{"type": "ineq", "fun": lambda w: self.beta(w, self.beta_vec) - bound[0]},
                 {"type": "ineq", "fun": lambda w: -self.beta(w, self.beta_vec) + bound[1]}]
 
     def treynor_const(self, bound, risk_free):
-        bound = self.construct_bound(bound, True, 10)
+        bound = ConstraintGenerator.construct_const_bound(bound, True, 10)
         return [{"type": "ineq", "fun": lambda w: self.treynor(w, risk_free, self.beta_vec) - bound[0]},
                 {"type": "ineq", "fun": lambda w: -self.treynor(w, risk_free, self.beta_vec)  + bound[1]}]
         # return [self.treynor(risk_free, self.beta_vec) >= bound[0], self.treynor(risk_free, self.beta_vec) <= bound[1]]
 
     def jenson_alpha_const(self, bound, risk_free, market_return):
-        bound = self.construct_bound(bound, True, 10)
+        bound = ConstraintGenerator.construct_const_bound(bound, True, 10)
         return [{"type": "ineq", "fun": lambda w: self.jenson_alpha(w, risk_free, market_return, self.beta_vec) - bound[0]},
                 {"type": "ineq", "fun": lambda w: -self.jenson_alpha(w, risk_free, market_return, self.beta_vec) + bound[1]}]
         # return [self.jenson_alpha(wrisk_free, market_return, self.beta_vec) >= bound[0], self.jenson_alpha(risk_free, market_return, self.beta_vec) <= bound[1]]
 
     # Risk related constraints
     def volatility_const(self, bound):
-        bound = self.construct_bound(bound, False, 0)
+        bound = ConstraintGenerator.construct_const_bound(bound, False, 0)
         return [{"type": "ineq", "fun": lambda w: self.volatility(w)  + bound[0]},
                 {"type": "ineq", "fun": lambda w: -self.volatility(w) + bound[1]}]
         # return [self.volatility() >= bound[0], self.volatility <= bound[1]]
@@ -149,14 +116,14 @@ class ConstraintGen(MetricGen):
     def variance_const(self, bound):
         if self.moment != 2:
             raise DimException("Did not pass in a correlation/covariance matrix")
-        bound = self.construct_bound(bound, False, 0)
+        bound = ConstraintGenerator.construct_const_bound(bound, False, 0)
         return [{"type": "ineq", "fun": lambda w: self.variance(w) + bound[0]},
                 {"type": "ineq", "fun": lambda w: -self.variance(w) + bound[1]}]
 
     def skew_const(self, bound):
         if self.moment != 3:
             raise DimException("Did not pass in a coskewness matrix")
-        bound = self.construct_bound(bound, False, 0)
+        bound = ConstraintGenerator.construct_const_bound(bound, False, 0)
         return [{"type": "ineq", "fun": lambda w: self.higher_moment(w) + bound[0]},
                 {"type": "ineq", "fun": lambda w: -self.higher_moment(w) + bound[1]}]
 
@@ -164,16 +131,17 @@ class ConstraintGen(MetricGen):
         if self.moment != 4:
             raise DimException("Did not pass in a cokurtosis matrix")
 
-        bound = self.construct_bound(bound, False, 0)
+        bound = ConstraintGenerator.construct_const_bound(bound, False, 0)
         return [{"type": "ineq", "fun": lambda w: self.higher_moment(w) + bound[0]},
                 {"type": "ineq", "fun": lambda w: -self.higher_moment(w) + bound[1]}]
 
     def moment_const(self, bound):
-        bound = self.construct_bound(bound, False, 0)
+        bound = ConstraintGenerator.construct_const_bound(bound, False, 0)
         return [{"type": "ineq", "fun": lambda w: self.higher_moment(w) + bound[0]},
                 {"type": "ineq", "fun": lambda w: -self.higher_moment(w) + bound[1]}]
-
-    def construct_bound(self, bound, minimum, opposite_value):
+    
+    @staticmethod
+    def construct_const_bound(bound, minimum, opposite_value):
         if isinstance(bound, (int, float)):
             warnings.warn(f"""Only one bound is given, will set the {'maximum' if minimum else 'minimum'} value to be {opposite_value}""")
             if minimum:
@@ -181,6 +149,69 @@ class ConstraintGen(MetricGen):
             else:
                 bound = (opposite_value, bound)
         return bound
+    
+    @staticmethod
+    def construct_weight_bound(size, init_bound, weight_bound):
 
+        individual_bound = init_bound
+
+        if isinstance(weight_bound, (list, tuple)):
+            if isinstance(weight_bound[0], (list, tuple)):
+                if all([len(ind_weights) == 2 for ind_weights in weight_bound]) and len(weight_bound) == size:
+                    weight_bound = np.array(weight_bound)
+                else:
+                    raise DimException("""If specifying weight for each individual asset, must be passed in pairs and 
+                                            its length must equal the number of assets""")
+            if isinstance(weight_bound[0], (float, int)):
+                # constraints += [self.weight_param >= weight_bound[0]]
+                # constraints += [self.weight_param <= weight_bound[1]]
+                individual_bound = list(zip(np.repeat(weight_bound[0], size),
+                                            np.repeat(weight_bound[1], size)))
+            else:
+                raise FormatException(
+                    """Please pass in weight boundaries in an accepted format. List/Tuple/Np.ndarray""")
+        if isinstance(weight_bound, np.ndarray):
+            if weight_bound.ndim == 1:
+                individual_bound = list(zip(np.repeat(weight_bound[0], size),
+                                            np.repeat(weight_bound[1], size)))
+
+            elif weight_bound.ndim == 2:
+                if weight_bound.shape != (size, 2):
+                    raise DimException("Dimension of Weights does not match number of assets")
+                individual_bound = list(zip(weight_bound[:, 0], weight_bound[:, 1]))
+            else:
+                raise DimException("Dimension of Weight Bound Array must be 1/2")
+        return individual_bound
+    
+    @staticmethod
+    def gen_random_weight(size, bound, leverage):
+        if all(bound[0][0] == low for low, high in bound) and all(bound[0][1] == high for low, high in bound):
+            # temp = np.random.uniform(low=bound[0][0], high=bound[0][1], size=size)
+            # std = (bound[0][1] - bound[0][0])/2
+            # mu = (bound[0][1] + bound[0][0])/2
+            # temp = temp * std + mu
+            rand_weight = np.random.dirichlet(np.arange(1, size + 1))
+            if bound[0][0] < 0:
+                neg_idx = np.random.choice(rand_weight.shape[0], np.random.choice(size + 1), replace=False)
+                rand_weight[neg_idx] = -rand_weight[neg_idx]
+                temp = rand_weight * (bound[0][1] - bound[0][0]) / 2 + (
+                            bound[0][0] + (bound[0][1] - bound[0][0]) / 2)
+                # rand_weight = rand_weight / np.sum(np.abs(rand_weight)) * leverage
+            else:
+                temp = rand_weight * (bound[0][1] - bound[0][0]) + bound[0][0]
+        else:
+            temp = np.zeros(shape=size)
+            for idx, interval in enumerate(bound):
+            # transformed = interval[1] + 1
+            # while (transformed > interval[1]) or (transformed < interval[0]):
+                val = np.random.randn(1)[0]
+                std = (interval[1] - interval[0])/2
+                mu = (interval[1] + interval[0])/2
+            #     transformed =
+                temp[idx] = val * std + mu
+                # temp[idx] = random.uniform(a=interval[0], b=interval[1])
+
+        temp = temp / np.abs(temp).sum() * leverage  # Two Standard Deviation
+        return temp
 
 

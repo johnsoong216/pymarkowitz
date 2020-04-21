@@ -9,20 +9,20 @@ import pandas as pd
 from scipy.optimize import minimize
 import seaborn as sns
 import matplotlib.pyplot as plt
+import plotly.express as px
 
 from .Exceptions import *
-from .ConstraintGen import ConstraintGen as ConstGen
-from .ObjectiveGen import ObjectiveGen as ObjGen
-from .MetricGen import  MetricGen as MetGen
+from .Constraints import ConstraintGenerator as ConstGen
+from .Objectives import ObjectiveGenerator as ObjGen
+from .Metrics import MetricGenerator as MetGen
 
 
-
-class ProblemGen:
+class Optimizer:
 
     def __init__(self, ret_data, moment_data, beta_data=None, asset_names=None):
 
-        self.ret_vec, self.moment_mat, self.assets, self.moment, self.beta_vec = ProblemGen.init_checker(ret_data, moment_data,
-                                                                                         asset_names, beta_data)
+        self.ret_vec, self.moment_mat, self.assets, self.moment, self.beta_vec = Optimizer.init_checker(ret_data, moment_data,
+                                                                                                        asset_names, beta_data)
 
         self.weight_sols = None
 
@@ -67,51 +67,15 @@ class ProblemGen:
         if clear_obj:
             self.objective = None
 
-    @staticmethod
-    def gen_random_weight(size, bound, leverage):
-        lb = bound[0]
-        ub = bound[1]
-        # temp = np.random.uniform(size=size, low=lb, high=ub)
-        temp = np.random.randn(size)
-        # print(temp)
-        # print(temp)
-        # print(temp/temp.sum())
-        # print((temp/temp.sum()).sum())
-        temp = temp / temp.sum()
-        # print(temp)
-        # temp[temp < lb] = lb
-        # temp[temp > ub] = ub
-        return temp * leverage
 
     def solve(self, x0=None, round=4, **kwargs):
         if type(self.objective) != np.ndarray:
-            # print(self.bounds)
-            # print(self.bounds)
-            # print(self.constraints
-            res = minimize(self.objective, x0=ProblemGen.gen_random_weight(self.ret_vec.shape[0], self.bounds[0], self.leverage) if x0 is None else x0, options={'maxiter': 1000},
+            res = minimize(self.objective, x0=ConstGen.gen_random_weight(self.ret_vec.shape[0], self.bounds, self.leverage) if x0 is None else x0, options={'maxiter': 1000},
                            constraints=self.constraints, bounds=self.bounds, args=self.objective_args)
             if not res.success:
                 self.clear(**kwargs)
                 raise OptimizeException(f"""Optimization has failed. Error Message: {res.message}. Please adjust constraints/objectives or input an initial guess.""")
-            # print(res)
-            # try:
-            #     ans = prob.solve()
-            # except cp.DCPError:
-            #     try:
-            #         ans = prob.solve(qcp=True)
-            #     except (cp.DCPError, cp.SolverError):
-            #         try:
-            #             ans = prob.solve(solver=cp.SCS, qcp=True)
-            #         except cp.DCPError:
-            #             raise OptimizeException(f"""The problem formulated is not convex if minimizing,
-            #         concave if maximizing""")
-            #
-            # if "unbounded" in prob.status:
-            #     raise OptimizeException("Unbounded Variables")
-            # elif "infeasible" in prob.status:
-            #     raise OptimizeException("Infeasible Variables")
-            # elif "inaccurate" in prob.status:
-            #     warnings.warn("Results may be inaccurate.")
+
             self.clear(**kwargs)
             self.weight_sols = np.round(res.x, round) + 0
 
@@ -165,26 +129,47 @@ class ProblemGen:
         weight_dict = {k: v for k, v in weight_dict.items() if v}
         return weight_dict, metric_dict
 
-    def simulate(self, x='volatility', y='expected_return', iters=1000, weight_bound=(0,1), leverage=1, ret_format='sns', **kwargs):
+    def simulate(self, x='volatility', y='expected_return', iters=1000, weight_bound=(0,1), leverage=1, ret_format='sns', file_path=None, x_var=dict(), y_var=dict()):
 
         x_val = np.zeros(iters)
         y_val = np.zeros(iters)
+        weight_vals = np.zeros(shape=(iters, len(self.assets)))
+        individual_bound = ConstGen.construct_weight_bound(self.ret_vec.shape[0], (0,1), weight_bound)
 
-        for iter in range(iters):
-            temp_weights = ProblemGen.gen_random_weight(self.ret_vec.shape[0], weight_bound, leverage)
-            x_val[iter] = self.metric_creator.method_dict[x](temp_weights, **kwargs)
-            y_val[iter] = self.metric_creator.method_dict[y](temp_weights, **kwargs)
+        for it in range(iters):
+            temp_weights = ConstGen.gen_random_weight(self.ret_vec.shape[0], individual_bound, leverage)
+            weight_vals[it] = temp_weights
+            x_val[it] = self.metric_creator.method_dict[x](temp_weights, **x_var)
+            y_val[it] = self.metric_creator.method_dict[y](temp_weights, **y_var)
 
         if ret_format == 'sns':
             sns.scatterplot(x_val, y_val);
-            plt.ylim(0, 1);
-            plt.xlim(0, 1);
+            plt.xlim(x_val.mean() - x_val.std() * 5, x_val.mean() + x_val.std() * 5);
+            plt.ylim(y_val.mean() - y_val.std() * 5, y_val.mean() + y_val.std() * 5);
             plt.xlabel(x);
             plt.ylabel(y);
+            if file_path:
+                plt.savefig(file_path)
             plt.show()
         else:
-            return pd.DataFrame(columns=[x] + [y], data=np.concatenate([x_val.reshape(1,-1), y_val.reshape(1,-1)]).T)
-        # return fig
+            res_df = pd.DataFrame(columns=[x] + [y], data=np.concatenate([x_val.reshape(1, -1), y_val.reshape(1, -1)]).T)
+            res_df = pd.concat([res_df, pd.DataFrame(columns=self.assets, data=weight_vals)], axis=1)
+            if ret_format == 'plotly':
+                return px.scatter(res_df, x=x, y=y)
+            elif ret_format == "df":
+                return res_df
+            else:
+                raise FormatException("""Return Format must be sns, plotly, df""")
+
+
+    def objective_options(self):
+        return Optimizer.list_method_options(self.obj_creator.method_dict)
+
+    def constraint_options(self):
+        return Optimizer.list_method_options(self.const_creator.method_dict)
+
+    def metric_options(self):
+        return Optimizer.list_method_options(self.metric_creator.method_dict)
 
     @staticmethod
     def list_method_options(method_dict):
@@ -192,15 +177,6 @@ class ProblemGen:
         for method in method_dict:
             res_dict[method] = inspect.signature(method_dict[method])
         return res_dict
-
-    def objective_options(self):
-        return ProblemGen.list_method_options(self.obj_creator.method_dict)
-
-    def constraint_options(self):
-        return ProblemGen.list_method_options(self.const_creator.method_dict)
-
-    def metrics_options(self):
-        return ProblemGen.list_method_options(self.metric_creator.method_dict)
 
     @staticmethod
     def init_checker(ret_data, moment_data, asset_names, beta_data):
@@ -233,11 +209,6 @@ class ProblemGen:
         else:
             assets = [f'ASSET_{x}' for x in range(moment_mat.shape[0])]
 
-        ### Dimensionality Checking
-        # print(ret_vec.shape[0])
-        # print(moment_mat.shape[1])
-        # print(moment)
-        # print(int(moment))
         beta_vec = None
         if beta_data is None:
             warnings.warn(""""Detected no beta input. Will not be able to perform any beta-related optimization.""")

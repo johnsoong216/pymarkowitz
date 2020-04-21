@@ -1,16 +1,11 @@
-import math
-import warnings
-
 import numpy as np
-import pandas as pd
-import cvxpy as cp
 import pandas_datareader as data
 
 from .Exceptions import *
 ### This class hosts all the metrics that can be used for both objectives/constraints
 # https://investresolve.com/file/pdf/Portfolio-Optimization-Whitepaper.pdf
 
-class MetricGen:
+class MetricGenerator:
 
 
 
@@ -27,13 +22,14 @@ class MetricGen:
                             "concentration": self.concentration,
                             "correlation": self.correlation,
                             "diversification": self.diversification,
-                            "variance": self.variance,
+                            "variance": self.higher_moment,
                             "volatility": self.volatility,
                             "skew": self.higher_moment,
                             "kurt": self.higher_moment,
                             "moment": self.higher_moment,
                             "risk_parity": self.risk_parity,
                             "expected_return": self.expected_return,
+                            "sharpe": self.sharpe,
                             "beta": self.beta,
                             "treynor": self.treynor,
                             "jenson_alpha": self.jenson_alpha}
@@ -53,6 +49,8 @@ class MetricGen:
 
     # Involves Risk Only
     def correlation(self, w):
+        if self.moment != 2:
+            raise DimException("Did not pass in a covariance matrix")
         # Assume Covariance Matrix is passed in
         corr_mat = self.moment_mat * np.dot(((np.diag(self.moment_mat)) ** -0.5).reshape(-1, 1),
                                             ((np.diag(self.moment_mat)) ** -0.5).reshape(1, -1))
@@ -65,27 +63,26 @@ class MetricGen:
         std_arr = np.diag(self.moment_mat) ** 0.5
         return (w @ std_arr)/np.sqrt(w @ self.moment_mat @ w.T)
 
-    def variance(self, w):
-        if self.moment != 2:
-            raise DimException("Did not pass in a covariance matrix")
-
-        return w @ self.moment_mat @ w.T
+    # def variance(self, w): # Equivalent to calling higher_moment
+    #     if self.moment != 2:
+    #         raise DimException("Did not pass in a covariance matrix")
+    #
+    #     return w @ self.moment_mat @ w.T
 
     def volatility(self, w):
-        return np.sqrt(self.variance(w))
+        if self.moment != 2:
+            raise DimException("Did not pass in a covariance matrix")
+        return np.sqrt(self.higher_moment(w))
 
     def higher_moment(self, w):
         temp = w
         for iteration in range(self.moment - 2):
             temp = np.kron(w, temp)
-            # print(temp.shape)
-            # print(self.moment_mat.shape)
-            # print(w.shape)
-
-        return w @ self.moment_mat @ temp
+        return w @ self.moment_mat @ temp.T
 
     def risk_parity(self, w):
-
+        if self.moment != 2:
+            raise DimException("Did not pass in a covariance matrix")
         return 0.5 * w @ self.moment_mat @ w.T - np.sum(np.log(w))/len(self.assets)
         # return 0.5 * cp.quad_form(self.weight_param, self.moment_mat) - cp.sum(cp.log(self.weight_param))/len(self.assets)
 
@@ -95,26 +92,35 @@ class MetricGen:
 
     # Sortino if passed in a semivariance matrix
     def sharpe(self, w, risk_free):
+        if self.moment != 2:
+            raise DimException("Did not pass in a covariance matrix")
         return (self.expected_return(w) - risk_free)/self.volatility(w)
 
-    def beta(self, w, individual_beta):
-        return w @ individual_beta
+    def beta(self, w):
+        return w @ self.beta_vec
 
-    def treynor(self, w, risk_free, individual_beta):
-        return (self.expected_return(w) - risk_free)/self.beta(w, individual_beta)
+    def treynor(self, w, risk_free):
+        return (self.expected_return(w) - risk_free)/self.beta(w)
 
-    def jenson_alpha(self, w, risk_free, market_return, individual_beta):
-        return self.expected_return(w) - risk_free - self.beta(w, individual_beta) * (market_return - risk_free)
+    def jenson_alpha(self, w, risk_free, market_return):
+        return self.expected_return(w) - risk_free - self.beta(w) * (market_return - risk_free)
 
     # Tracking Error/ Calmar ratio /Omega not feasible (Can be included in backtesting)
 
     # Does not Involve Optimization
 
     def inverse_volatility(self):
+
+        if self.moment != 2:
+            raise DimException("Did not pass in a covariance matrix")
+
         std_arr = np.diag(self.moment_mat) ** 0.5
         return (1/std_arr)/np.sum(1/std_arr)
     #
     def inverse_variance(self):
+        if self.moment != 2:
+            raise DimException("Did not pass in a covariance matrix")
+
         var_arr = np.diag(self.moment_mat)
         return (1/var_arr)/np.sum(1/var_arr)
 

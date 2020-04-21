@@ -1,24 +1,21 @@
 import numpy as np
-import pandas as pd
-import cvxpy as cp
-import math
-import warnings
-from .Exceptions import *
-from .MetricGen import MetricGen
+from .Metrics import MetricGenerator
 
 
-class ObjectiveGen(MetricGen):
+class ObjectiveGenerator(MetricGenerator):
 
     def __init__(self, ret_vec, moment_mat, moment, assets, beta_vec):
 
         super().__init__(ret_vec, moment_mat, moment, assets, beta_vec)
+
+
         self.method_dict = {"efficient_frontier": self.efficient_frontier,
                             "equal_risk_parity": self.equal_risk_parity,
                             "min_correlation": self.min_correlation,
                             "min_volatility": self.min_volatility,
-                            "min_variance": self.min_variance,
-                            "min_skew": self.min_skew,
-                            "min_kurt": self.min_kurt,
+                            "min_variance": self.min_moment,
+                            "min_skew": self.min_moment,
+                            "min_kurt": self.min_moment,
                             "min_moment": self.min_moment,
                             "max_return": self.max_return,
                             "max_diversification": self.max_diversification,
@@ -38,7 +35,7 @@ class ObjectiveGen(MetricGen):
 
     # Classic Equation
     def efficient_frontier(self, w, aversion):
-        return -(self.expected_return(w) - aversion * self.variance(w))
+        return -(self.expected_return(w) - aversion * self.higher_moment(w))
 
     # Risk Related
     def equal_risk_parity(self, w):
@@ -50,14 +47,14 @@ class ObjectiveGen(MetricGen):
     def min_volatility(self, w):
         return self.volatility(w)
 
-    def min_variance(self, w):
-        return self.variance(w)
-
-    def min_skew(self, w):
-        return self.min_moment(w)
-
-    def min_kurt(self, w):
-        return self.min_moment(w)
+    # def min_variance(self, w):
+    #     return self.variance(w)
+    #
+    # def min_skew(self, w):
+    #     return self.min_moment(w)
+    #
+    # def min_kurt(self, w):
+    #     return self.min_moment(w)
 
     def min_moment(self, w):
         return self.higher_moment(w)
@@ -75,12 +72,12 @@ class ObjectiveGen(MetricGen):
 
     # Make beta close to zero
     def min_beta(self, w):
-        return np.sqrt(np.square(self.beta(w, self.beta_vec)))
+        return np.sqrt(np.square(self.beta(w)))
 
     def max_treynor(self, w, risk_free):
-        return -self.treynor(w, risk_free, self.beta_vec)
+        return -self.treynor(w, risk_free)
 
     def max_jenson_alpha(self, w, risk_free, market_return):
-        return -self.jenson_alpha(w, risk_free, market_return, self.beta_vec)
+        return -self.jenson_alpha(w, risk_free, market_return)
 
 

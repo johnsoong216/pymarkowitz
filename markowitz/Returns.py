@@ -1,19 +1,14 @@
 import numpy as np
 import pandas as pd
-import sklearn as sk
-import seaborn as sns
 from .Exceptions import *
 
 
-class ReturnGen:
+class ReturnGenerator:
 
     def __init__(self, price_data, assets=None):
 
         if isinstance(price_data, pd.DataFrame):
-
-            ### Detect Non-Numeric Column
-
-            self.price_mat = price_data.values.transpose()
+            self.price_mat = price_data.values.T
             self.assets = price_data.columns
             self.index = price_data.index
 
@@ -29,11 +24,11 @@ class ReturnGen:
         index = self.index
 
         if method == 'daily':
-            ret_mat, ret_idx = ReturnGen.return_formula(price_mat, index, window=1, roll=True, **kwargs)
+            ret_mat, ret_idx = ReturnGenerator.return_formula(price_mat, index, window=1, roll=True, **kwargs)
         elif method == 'rolling':
-            ret_mat, ret_idx = ReturnGen.return_formula(price_mat, index, roll=True, **kwargs)
+            ret_mat, ret_idx = ReturnGenerator.return_formula(price_mat, index, roll=True, **kwargs)
         elif method == 'collapse':
-            ret_mat, ret_idx = ReturnGen.return_formula(price_mat, index, roll=False, **kwargs)
+            ret_mat, ret_idx = ReturnGenerator.return_formula(price_mat, index, roll=False, **kwargs)
         # May add later
         # elif method == 'week':
         #     pass
@@ -55,9 +50,32 @@ class ReturnGen:
         else:
             raise FormatException("Invalid Format. Valid options are: df, raw")
 
+    def calc_mean_return(self, method, time_scaling, ret_format='series', **kwargs):
+
+        price_mat = self.price_mat
+        index = self.index
+
+        ret_mat, ret_idx = ReturnGenerator.return_formula(price_mat, index, **kwargs)
+
+        if method == 'arithmetic':
+            mean_ret = np.mean(ret_mat, axis=1) * time_scaling
+        elif method == 'geometric':
+            mean_ret = (price_mat[:, -1]/price_mat[:, 0]) ** (1/price_mat.shape[0]) - 1
+        else:
+            raise MethodException("""Method options are arithmetic/geometric""")
+
+        if ret_format == 'series':
+            return pd.Series(mean_ret, index=self.assets)
+        elif ret_format == "raw":
+            return mean_ret, self.assets
+        else:
+            raise FormatException("""Invalid Format. Valid options are: series, raw""")
+
+
+
 
     @staticmethod
-    def return_formula(price_mat, index, roll=False, window=30, log=False):
+    def return_formula(price_mat, index, roll=True, window=1, log=False):
 
         if roll:
             step = 1
