@@ -49,6 +49,7 @@ class Optimizer:
 
 
     def add_constraint(self, constraint_type, **kwargs):
+
         if constraint_type == "custom":
             self.constraints += tuple(kwargs.values())[0]
         elif constraint_type == "weight":
@@ -70,19 +71,19 @@ class Optimizer:
 
     def solve(self, x0=None, round=4, **kwargs):
         if type(self.objective) != np.ndarray:
-            res = minimize(self.objective, x0=ConstGen.gen_random_weight(self.ret_vec.shape[0], self.bounds, self.leverage) if x0 is None else x0, options={'maxiter': 1000},
+            res = minimize(self.objective, x0 = ConstGen.gen_random_weight(self.ret_vec.shape[0], self.bounds, self.leverage) if x0 is None else x0, options={'maxiter': 1000},
                            constraints=self.constraints, bounds=self.bounds, args=self.objective_args)
             if not res.success:
                 self.clear(**kwargs)
-                raise OptimizeException(f"""Optimization has failed. Error Message: {res.message}. Please adjust constraints/objectives or input an initial guess.""")
+                raise OptimizeException(f"""Optimization has failed. Error Message: {res.message}. 
+                                            Please adjust constraints/objectives or input an initial guess.""")
 
             self.clear(**kwargs)
             self.weight_sols = np.round(res.x, round) + 0
 
         else:
             warnings.warn(f"""The problem formulated is not an optimization problem and is calculated numerically""")
-            # self.clear()
-            # self.weight_sols = dict(zip(self.assets, self.objective))
+
             self.weight_sols = self.objective
             self.clear(**kwargs)
 

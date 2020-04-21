@@ -1,3 +1,5 @@
+import warnings
+
 from .Metrics import *
 
 ### https://www.portfolioprobe.com/features/constraints/
@@ -67,51 +69,40 @@ class ConstraintGenerator(MetricGenerator):
         market_cap_weight = self.market_cap_data()
         return [{"type": "ineq", "fun": lambda w: market_cap_weight @ self.moment_mat @ w - bound[0]},
                 {"type": "ineq", "fun": lambda w: -(market_cap_weight @ self.moment_mat @ w - bound[1])}]
-        # return [market_cap_weight @ self.moment_mat @ self.weight_param >= bound[0],
-        #         market_cap_weight @ self.moment_mat @ self.weight_param <= bound[1]]
+
 
     # Return related
     def expected_return_const(self, bound): # Checked
         bound = ConstraintGenerator.construct_const_bound(bound, True, 10)
-        # print(lambda w: self.expected_return(w) - bound[0])
         return [{"type": "ineq", "fun": lambda w: self.expected_return(w) - bound[0]},
                 {"type": "ineq", "fun": lambda w: -self.expected_return(w) + bound[1]}]
-        # return [{"type": "ineq", "fun": lambda w: np.power(1 + self.expected_return(w), time_scaling) - bound[0]},
-        #         {"type": "ineq", "fun": lambda w: -np.power(1 + self.expected_return(w), time_scaling) + bound[1]}]
-
-        # return [cp.power(1 + self.expected_return(), time_scaling) - 1 >= bound[0], cp.power(1 + self.expected_return(), time_scaling) - 1 <= bound[1]]
 
     def sharpe_const(self, risk_free, bound):
         bound = ConstraintGenerator.construct_const_bound(bound, True, 10)
 
         return [{"type": "ineq", "fun": lambda w: self.sharpe(w, risk_free) - bound[0]},
                 {"type": "ineq", "fun": lambda w: -self.sharpe(w, risk_free) + bound[1]}]
-        # return [self.sharpe(risk_free) >= bound[0], self.sharpe(risk_free) <= bound[1]]
 
     def beta_const(self, bound):
         bound = ConstraintGenerator.construct_const_bound(bound, False, 1)
-        # return [self.beta(self.beta_vec) >= bound[0], self.beta(self.beta_vec) <= bound[1]]
-        return [{"type": "ineq", "fun": lambda w: self.beta(w, self.beta_vec) - bound[0]},
-                {"type": "ineq", "fun": lambda w: -self.beta(w, self.beta_vec) + bound[1]}]
+        return [{"type": "ineq", "fun": lambda w: self.beta(w) - bound[0]},
+                {"type": "ineq", "fun": lambda w: -self.beta(w) + bound[1]}]
 
     def treynor_const(self, bound, risk_free):
         bound = ConstraintGenerator.construct_const_bound(bound, True, 10)
-        return [{"type": "ineq", "fun": lambda w: self.treynor(w, risk_free, self.beta_vec) - bound[0]},
-                {"type": "ineq", "fun": lambda w: -self.treynor(w, risk_free, self.beta_vec)  + bound[1]}]
-        # return [self.treynor(risk_free, self.beta_vec) >= bound[0], self.treynor(risk_free, self.beta_vec) <= bound[1]]
+        return [{"type": "ineq", "fun": lambda w: self.treynor(w, risk_free) - bound[0]},
+                {"type": "ineq", "fun": lambda w: -self.treynor(w, risk_free)  + bound[1]}]
 
     def jenson_alpha_const(self, bound, risk_free, market_return):
         bound = ConstraintGenerator.construct_const_bound(bound, True, 10)
-        return [{"type": "ineq", "fun": lambda w: self.jenson_alpha(w, risk_free, market_return, self.beta_vec) - bound[0]},
-                {"type": "ineq", "fun": lambda w: -self.jenson_alpha(w, risk_free, market_return, self.beta_vec) + bound[1]}]
-        # return [self.jenson_alpha(wrisk_free, market_return, self.beta_vec) >= bound[0], self.jenson_alpha(risk_free, market_return, self.beta_vec) <= bound[1]]
+        return [{"type": "ineq", "fun": lambda w: self.jenson_alpha(w, risk_free, market_return) - bound[0]},
+                {"type": "ineq", "fun": lambda w: -self.jenson_alpha(w, risk_free, market_return) + bound[1]}]
 
     # Risk related constraints
     def volatility_const(self, bound):
         bound = ConstraintGenerator.construct_const_bound(bound, False, 0)
         return [{"type": "ineq", "fun": lambda w: self.volatility(w)  + bound[0]},
                 {"type": "ineq", "fun": lambda w: -self.volatility(w) + bound[1]}]
-        # return [self.volatility() >= bound[0], self.volatility <= bound[1]]
 
     def variance_const(self, bound):
         if self.moment != 2:
@@ -186,30 +177,21 @@ class ConstraintGenerator(MetricGenerator):
     @staticmethod
     def gen_random_weight(size, bound, leverage):
         if all(bound[0][0] == low for low, high in bound) and all(bound[0][1] == high for low, high in bound):
-            # temp = np.random.uniform(low=bound[0][0], high=bound[0][1], size=size)
-            # std = (bound[0][1] - bound[0][0])/2
-            # mu = (bound[0][1] + bound[0][0])/2
-            # temp = temp * std + mu
             rand_weight = np.random.dirichlet(np.arange(1, size + 1))
             if bound[0][0] < 0:
                 neg_idx = np.random.choice(rand_weight.shape[0], np.random.choice(size + 1), replace=False)
                 rand_weight[neg_idx] = -rand_weight[neg_idx]
                 temp = rand_weight * (bound[0][1] - bound[0][0]) / 2 + (
                             bound[0][0] + (bound[0][1] - bound[0][0]) / 2)
-                # rand_weight = rand_weight / np.sum(np.abs(rand_weight)) * leverage
             else:
                 temp = rand_weight * (bound[0][1] - bound[0][0]) + bound[0][0]
         else:
             temp = np.zeros(shape=size)
             for idx, interval in enumerate(bound):
-            # transformed = interval[1] + 1
-            # while (transformed > interval[1]) or (transformed < interval[0]):
                 val = np.random.randn(1)[0]
                 std = (interval[1] - interval[0])/2
                 mu = (interval[1] + interval[0])/2
-            #     transformed =
                 temp[idx] = val * std + mu
-                # temp[idx] = random.uniform(a=interval[0], b=interval[1])
 
         temp = temp / np.abs(temp).sum() * leverage  # Two Standard Deviation
         return temp

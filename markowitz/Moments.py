@@ -62,8 +62,8 @@ class MomentGenerator:
                 Ignores all individual asset returns above the bm_return when calculating covariance
         :param assume_zero: bool, default=False
                 Additional parameter for calculating semivariance matrix.
-                Long term daily mean return for an individual stock is assumed to be 0.
-                However, this may not be true if sample size is not sufficiently large.
+                Long term daily mean return for an individual asset is sometiimes assumed to be 0.
+                However, this may not hold true if sample size is not sufficiently large.
         :param normalize: bool, default=False
                 To normalize the covariance matrix. In the specific case for covariance matrix, a normalized covariance
                 matrix is a correlation matrix.
@@ -306,7 +306,7 @@ class MomentGenerator:
         for iteration in range(moment - 2):
             temp_mat = np.kron(diff_mat.T, temp_mat)[::num_obs + 1, :]
 
-        # DDOF
+        # DDOF calculation (May cause overflow if moment is too high)
         unbias_factor = (num_obs ** (moment - 1)) / (np.prod(num_obs - np.arange(1, moment, 1)))
         weighted_diff_mat = np.multiply(weight_mat, diff_mat) * unbias_factor
 

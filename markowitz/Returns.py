@@ -29,15 +29,6 @@ class ReturnGenerator:
             ret_mat, ret_idx = ReturnGenerator.return_formula(price_mat, index, roll=True, **kwargs)
         elif method == 'collapse':
             ret_mat, ret_idx = ReturnGenerator.return_formula(price_mat, index, roll=False, **kwargs)
-        # May add later
-        # elif method == 'week':
-        #     pass
-        # elif method == 'month':
-        #     pass
-        # elif method == 'quarter':
-        #     pass
-        # elif method == 'annual':
-        #     pass
         else:
             raise MethodException("""Invalid Method. Valid Inputs: daily, rolling, collapse""")
 
@@ -67,7 +58,7 @@ class ReturnGenerator:
         if ret_format == 'series':
             return pd.Series(mean_ret, index=self.assets)
         elif ret_format == "raw":
-            return mean_ret, self.assets
+            return self.assets, mean_ret
         else:
             raise FormatException("""Invalid Format. Valid options are: series, raw""")
 
@@ -87,21 +78,3 @@ class ReturnGenerator:
         if not log:
             return ((price_mat/np.roll(price_mat, shift=shift, axis=1)) - 1)[:, shift::step], index[shift::step]
         return np.log((price_mat/np.roll(price_mat, shift=shift, axis=1)))[:, shift::step], index[shift::step]
-
-    # def result(self, ret_mat=None, index=None, return_format='df', **kwargs):
-    #
-    #     if ret_mat is None:
-    #         ret_mat = self.return_mat
-    #     if index is None:
-    #         index = self.return_index
-    #
-    #     df = pd.DataFrame(ret_mat.T, columns=self.assets, index=index, **kwargs)
-    #
-    #     if return_format == 'df':
-    #         return df
-    #     elif return_format == 'dict':
-    #         return df.unstack().to_dict()
-    #     elif return_format == 'raw':
-    #         return self.assets, ret_mat, index
-    #     else:
-    #         raise FormatException("Invalid Format. Valid options are: df, dict, raw")
