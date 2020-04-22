@@ -86,7 +86,7 @@ class ReturnGenerator:
         if method == 'arithmetic':
             mean_ret = np.mean(ret_mat, axis=1) * time_scaling
         elif method == 'geometric':
-            mean_ret = (price_mat[:, -1]/price_mat[:, 0]) ** (1/price_mat.shape[0]) ** time_scaling - 1
+            mean_ret = ((price_mat[:, -1]/price_mat[:, 0]) ** (time_scaling/price_mat.shape[1])) - 1
         else:
             raise MethodException("""Method options are arithmetic/geometric""")
 

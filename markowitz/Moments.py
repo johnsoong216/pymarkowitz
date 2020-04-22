@@ -11,7 +11,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
-import sklearn as sk
+from sklearn.covariance import *
 
 from .Exceptions import *
 
@@ -202,14 +202,14 @@ class MomentGenerator:
         :param kwargs: additional arguments used in sklearn methods
         :return: np.ndarray, covariance matrix in its raw form
         """
-        technique_dict = {"EmpiricalCovariance": sk.covariance.EmpiricalCovariance,
-                          "EllipticEnvelope": sk.covariance.EllipticEnvelope,
-                          "GraphicalLasso": sk.covariance.GraphicalLasso,
-                          "GraphicalLassoCV": sk.covariance.GraphicalLassoCV,
-                          "LedoitWolf": sk.covariance.LedoitWolf,
-                          "MinCovDet": sk.covariance.MinCovDet,
-                          "OAS": sk.covariance.OAS,
-                          "ShrunkCovariance": sk.covariance.ShrunkCovariance}
+        technique_dict = {"EmpiricalCovariance": EmpiricalCovariance,
+                          "EllipticEnvelope": EllipticEnvelope,
+                          "GraphicalLasso": GraphicalLasso,
+                          "GraphicalLassoCV": GraphicalLassoCV,
+                          "LedoitWolf": LedoitWolf,
+                          "MinCovDet": MinCovDet,
+                          "OAS": OAS,
+                          "ShrunkCovariance": ShrunkCovariance}
         try:
             return technique_dict[technique](**kwargs).fit(return_mat.T).covariance_ * time_scaling
         except KeyError:
@@ -251,6 +251,7 @@ class MomentGenerator:
         else:
             raise MethodException("""Invalid Method, Valid options are: default (equal weight), exp (exponential decay),
                                     custom (custom weight)""")
+        # print(weights)
         return weights
 
     def semi_cov(self, return_mat, bm_return=0.0001, assume_zero=False):
@@ -307,7 +308,7 @@ class MomentGenerator:
             temp_mat = np.kron(diff_mat.T, temp_mat)[::num_obs + 1, :]
 
         # DDOF calculation (May cause overflow if moment is too high)
-        unbias_factor = (num_obs ** (moment - 1)) / (np.prod(num_obs - np.arange(1, moment, 1)))
+        unbias_factor = np.prod(np.repeat(num_obs, moment-1)/(num_obs - np.arange(1, moment, 1))) #(num_obs ** (moment - 1)) / (np.prod(num_obs - np.arange(1, moment, 1)))
         weighted_diff_mat = np.multiply(weight_mat, diff_mat) * unbias_factor
 
         moment_mat = np.dot(weighted_diff_mat, temp_mat)
@@ -339,8 +340,6 @@ class MomentGenerator:
         A decay of 0.94 and a span of 2 will construct weight factor as based on proximity to benchmark date
         as [0.94, 0.94, 0.94^2, 0.94^2, ...]
         """
-
         decay_factor = decay ** np.arange(0, return_mat.shape[1]//span + 1)
         decay_factor = np.repeat(decay_factor, repeats=span)[:return_mat.shape[1]]
-
         return decay_factor[::-1]
