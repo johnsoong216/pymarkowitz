@@ -243,7 +243,19 @@ class Optimizer:
                 raise FormatException("""Return Format must be sns, plotly, df""")
 
     def simulate_efficient_frontier(self, iters=1000, weight_bound=(0,1), leverage=1, num_assets=None, top_holdings=None, top_concentration=None, ret_format='df', file_path=None):
+        """
+        Simulate the efficient frontier (Quadratic Utility Function concerned with Expected Return and Variance Tradeoff
 
+        :param iters: number of simulations
+        :param weight_bound: constraints on individual portfolio
+        :param leverage: constraint on total leverage
+        :param num_assets: constraint on number of assets
+        :param top_holdings: constraint on portfolio concentration
+        :param top_concentration: constraint on portfolio concentration
+        :param ret_format: return format
+        :param file_path: save figure or not
+        :return:
+        """
         x_val = np.zeros(iters)
         y_val = np.zeros(iters)
         weight_vals = np.zeros(shape=(iters, len(self.assets)))
@@ -263,15 +275,13 @@ class Optimizer:
             x_val[it] = self.metric_creator.method_dict['volatility'](self.weight_sols)
             y_val[it] = self.metric_creator.method_dict['expected_return'](self.weight_sols)
             weight_vals[it] = self.weight_sols
-        ### Data Fit to Quadratic
-        ### Add Tangent Line
 
         if ret_format == 'sns':  # Change to plt, fig format
             fig, ax = plt.subplots(figsize=(18, 12));
             ax = sns.scatterplot(x_val, y_val);
             ax.set_title(f"Efficient Frontier")
             plt.xlim(0, x_val.mean() + 3 * x_val.std());
-            plt.ylim(y_val.min() - 0.05, y_val.max() + 0.05);
+            plt.ylim(y_val.min() - 0.01, y_val.max() + 0.01);
             plt.xlabel('volatility');
             plt.ylabel('expected_return');
             if file_path:
