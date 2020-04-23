@@ -12,6 +12,7 @@ For the first functionality, all the addition of objective/constraints are perfo
 For the second functionality, all the weight-related constraints can be passed in as arguments in the following method:
 - simulate()
 """
+
 import math
 import warnings
 import inspect
@@ -61,7 +62,6 @@ class Optimizer:
         self.bounds, self.constraints = self.const_creator.create_constraint('weight', weight_bound=(0, 1), leverage=1)
         self.leverage = 1
 
-
     def add_objective(self, objective_type, **kwargs):
         """
         Add an objective to the optimization problem. Call objective_options() to check all available options.
@@ -73,12 +73,11 @@ class Optimizer:
         :param kwargs: arguments to be passed into the objective when performing optimization
         """
         if objective_type != "custom":
-            self.objective_args = tuple(kwargs.values())[1:]
+            self.objective_args = tuple(kwargs.values())
             self.objective = self.obj_creator.create_objective(objective_type, **kwargs)
         else:
             self.objective_args = tuple(kwargs.values())[1:]
             self.objective = tuple(kwargs.values())[0]
-
 
     def add_constraint(self, constraint_type, **kwargs):
         """
@@ -235,6 +234,49 @@ class Optimizer:
             plt.show()
         else:
             res_df = pd.DataFrame(columns=[x] + [y], data=np.concatenate([x_val.reshape(1, -1), y_val.reshape(1, -1)]).T)
+            res_df = pd.concat([res_df, pd.DataFrame(columns=self.assets, data=weight_vals)], axis=1)
+            if ret_format == 'plotly':
+                return px.scatter(res_df, x=x, y=y, title=f"{x} vs {y}")
+            elif ret_format == "df":
+                return res_df
+            else:
+                raise FormatException("""Return Format must be sns, plotly, df""")
+
+    def simulate_efficient_frontier(self, iters=1000, risk_free=None, weight_bound=(0,1), leverage=1, num_assets=None, top_holdings=None, top_concentration=None, ret_format='df', file_path=None):
+
+        x_val = np.zeros(iters)
+        y_val = np.zeros(iters)
+        weight_vals = np.zeros(shape=(iters, len(self.assets)))
+
+        for it in range(iters):
+            bound, leverage = self.const_creator.create_constraint('weight', weight_bound=weight_bound, leverage=leverage)
+            self.constraints[0] = leverage[0]
+            self.constraints += bound
+            if num_assets is not None:
+                self.constraints += self.const_creator.create_constraint("num_assets", num_assets=num_assets)
+            if top_holdings is not None and top_concentration is not None:
+                self.constraints += self.const_creator.create_constraint("concentration", top_holdings=top_holdings, top_concentration=top_concentration)
+            self.solve()
+            x_val[it] = self.metric_creator.method_dict['volatility'](self.weight_sols)
+            y_val[it] = self.metric_creator.method_dict['expected_return'](self.weight_sols)
+            weight_vals[it] = self.weight_sols
+        ### Data Fit to Quadratic
+        ### Add Tangent Line
+
+        if ret_format == 'sns':  # Change to plt, fig format
+            fig, ax = plt.subplots(figsize=(18, 12));
+            ax = sns.scatterplot(x_val, y_val);
+            ax.set_title(f"{x} VS {y}")
+            plt.xlim(x_val.min(), x_val.max());
+            plt.ylim(y_val.min(), y_val.max());
+            plt.xlabel(x);
+            plt.ylabel(y);
+            if file_path:
+                plt.savefig(file_path)
+            plt.show()
+        else:
+            res_df = pd.DataFrame(columns=[x] + [y],
+                                  data=np.concatenate([x_val.reshape(1, -1), y_val.reshape(1, -1)]).T)
             res_df = pd.concat([res_df, pd.DataFrame(columns=self.assets, data=weight_vals)], axis=1)
             if ret_format == 'plotly':
                 return px.scatter(res_df, x=x, y=y, title=f"{x} vs {y}")
