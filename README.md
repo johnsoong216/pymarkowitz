@@ -26,7 +26,7 @@ Head over to the directory **demos** to get an in-depth look at the project and 
 
 - [Installation](#installation)
 - [Features](#features)
-- [Support](#support)
+- [Get In Touch](#get in touch)
 - [Reference](#reference)
 - [License](#license)
 
@@ -195,11 +195,9 @@ PortOpt.simulate(x='expected_return', y='sharpe', y_var={"risk_free": 0.02}, ite
 ---
 
 
-## Support
+## Get In Touch
 
-Reach out to me at one of the following places!
-
-- Email at johnsoong216@hotmail.com
+- Please reach out to me through email at johnsoong216@hotmail.com. Love to get connected and Chat!
 
 ---
 
