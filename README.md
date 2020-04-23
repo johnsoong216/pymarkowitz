@@ -26,7 +26,7 @@ Head over to the directory **demos** to get an in-depth look at the project and 
 
 - [Installation](#installation)
 - [Features](#features)
-- [Get In Touch](#get in touch)
+- [Get In Touch](#getintouch)
 - [Reference](#reference)
 - [License](#license)
 
