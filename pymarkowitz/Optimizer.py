@@ -12,6 +12,7 @@ For the first functionality, all the addition of objective/constraints are perfo
 For the second functionality, all the weight-related constraints can be passed in as arguments in the following method:
 - simulate()
 """
+
 import math
 import warnings
 import inspect
@@ -61,7 +62,6 @@ class Optimizer:
         self.bounds, self.constraints = self.const_creator.create_constraint('weight', weight_bound=(0, 1), leverage=1)
         self.leverage = 1
 
-
     def add_objective(self, objective_type, **kwargs):
         """
         Add an objective to the optimization problem. Call objective_options() to check all available options.
@@ -73,12 +73,11 @@ class Optimizer:
         :param kwargs: arguments to be passed into the objective when performing optimization
         """
         if objective_type != "custom":
-            self.objective_args = tuple(kwargs.values())[1:]
+            self.objective_args = tuple(kwargs.values())
             self.objective = self.obj_creator.create_objective(objective_type, **kwargs)
         else:
             self.objective_args = tuple(kwargs.values())[1:]
             self.objective = tuple(kwargs.values())[0]
-
 
     def add_constraint(self, constraint_type, **kwargs):
         """
@@ -238,6 +237,62 @@ class Optimizer:
             res_df = pd.concat([res_df, pd.DataFrame(columns=self.assets, data=weight_vals)], axis=1)
             if ret_format == 'plotly':
                 return px.scatter(res_df, x=x, y=y, title=f"{x} vs {y}")
+            elif ret_format == "df":
+                return res_df
+            else:
+                raise FormatException("""Return Format must be sns, plotly, df""")
+
+    def simulate_efficient_frontier(self, iters=1000, weight_bound=(0,1), leverage=1, num_assets=None, top_holdings=None, top_concentration=None, ret_format='df', file_path=None):
+        """
+        Simulate the efficient frontier (Quadratic Utility Function concerned with Expected Return and Variance Tradeoff
+
+        :param iters: number of simulations
+        :param weight_bound: constraints on individual portfolio
+        :param leverage: constraint on total leverage
+        :param num_assets: constraint on number of assets
+        :param top_holdings: constraint on portfolio concentration
+        :param top_concentration: constraint on portfolio concentration
+        :param ret_format: return format
+        :param file_path: save figure or not
+        :return:
+        """
+        x_val = np.zeros(iters)
+        y_val = np.zeros(iters)
+        weight_vals = np.zeros(shape=(iters, len(self.assets)))
+        self.bounds, self.constraints = self.const_creator.create_constraint('weight', weight_bound=weight_bound,
+                                                                             leverage=leverage)
+        if num_assets is not None:
+            self.constraints += self.const_creator.create_constraint("num_assets", num_assets=num_assets)
+        if top_holdings is not None and top_concentration is not None:
+            self.constraints += self.const_creator.create_constraint("concentration", top_holdings=top_holdings,
+                                                                     top_concentration=top_concentration)
+
+        aversion_factor = np.logspace(-3, 3, iters)
+        for it, av in enumerate(aversion_factor):
+            self.objective = self.obj_creator.create_objective('efficient_frontier')
+            self.objective_args = av
+            self.solve(clear_constraints=False)
+            x_val[it] = self.metric_creator.method_dict['volatility'](self.weight_sols)
+            y_val[it] = self.metric_creator.method_dict['expected_return'](self.weight_sols)
+            weight_vals[it] = self.weight_sols
+
+        if ret_format == 'sns':  # Change to plt, fig format
+            fig, ax = plt.subplots(figsize=(18, 12));
+            ax = sns.scatterplot(x_val, y_val);
+            ax.set_title(f"Efficient Frontier")
+            plt.xlim(0, x_val.mean() + 3 * x_val.std());
+            plt.ylim(y_val.min() - 0.01, y_val.max() + 0.01);
+            plt.xlabel('volatility');
+            plt.ylabel('expected_return');
+            if file_path:
+                plt.savefig(file_path)
+            plt.show()
+        else:
+            res_df = pd.DataFrame(columns=['volatility', 'expected_return'],
+                                  data=np.concatenate([x_val.reshape(1, -1), y_val.reshape(1, -1)]).T)
+            res_df = pd.concat([res_df, pd.DataFrame(columns=self.assets, data=weight_vals)], axis=1)
+            if ret_format == 'plotly':
+                return px.scatter(res_df, x='volatility', y='expected_return', title=f"Efficient Frontier")
             elif ret_format == "df":
                 return res_df
             else:

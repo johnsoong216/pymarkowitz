@@ -96,7 +96,7 @@ class ObjectiveGenerator(MetricGenerator):
         :param aversion: float, risk aversion factor
         :return: float
         """
-        return -(self.expected_return(w) - aversion * self.higher_moment(w))
+        return -(self.expected_return(w) - 0.5 * aversion * self.higher_moment(w))
 
     def max_return(self, w):
         """
