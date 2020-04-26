@@ -190,9 +190,35 @@ PortOpt.simulate(x='expected_return', y='sharpe', y_var={"risk_free": 0.02}, ite
 
 ### Backtesting
 
-> To be updated
+> Use **pymarkowitz** to construct optimized weights and backtest with real life portfolio
+> In this example, I am using SPDR sector ETFs to construct an optimized portfolio and compare against buy & hold SPY.
+> The configurations can be adjusted flexibly, please check backtesting.ipynb in demo directory for more detail. In this case we are minimizing volatility with a capped weight of 25% on each sector.
 
 ---
+
+```python
+import bt
+
+data = bt.get('spy, rwr, xlb, xli, xly, xlp, xle, xlf, xlu, xlv, xlk', start='2005-01-01')
+
+config = backtester.Config 
+strategy = backtester.WeighMarkowitz(config)
+
+s1 = bt.Strategy('s1', [bt.algos.RunWeekly(),
+                       bt.algos.SelectAll(),
+                       strategy,
+                       bt.algos.Rebalance()])
+test1 = bt.Backtest(s1, data)
+
+s2 = bt.Strategy('s2', [bt.algos.RunWeekly(),
+                       bt.algos.SelectAll(),
+                       bt.algos.WeighEqually(),
+                       bt.algos.Rebalance()])
+test2 = bt.Backtest(s2, data[['spy']].iloc[Config.lookback:])
+res = bt.run(test1, test2)
+res.plot()
+```
+![Backtest_Result](https://github.com/johnsoong216/pymarkowitz/blob/master/images/backtest_sector_vs_spy.PNG)
 
 
 ## Get In Touch
