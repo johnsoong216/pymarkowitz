@@ -26,7 +26,6 @@ Head over to the directory **demos** to get an in-depth look at the project and 
 
 - [Installation](#installation)
 - [Features](#features)
-- [Get In Touch](#get-in-touch)
 - [Reference](#reference)
 - [License](#license)
 
@@ -224,10 +223,6 @@ res.plot()
 ```
 ![Backtest_Result](https://github.com/johnsoong216/pymarkowitz/blob/master/images/backtest_sector_vs_spy.PNG)
 
-
-## Get In Touch
-
-- Please reach out to me through email at johnsoong216@hotmail.com. Love to get connected and Chat!
 
 ---
 
