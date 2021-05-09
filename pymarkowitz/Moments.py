@@ -160,7 +160,9 @@ class MomentGenerator:
         The parameters' usage are identical to that of calling method calc_cov_mat.
         Parameter normalize default=True as cokurtosis matrix is typically used in its normalized form
         """
-        return self.calc_comoment_mat(moment=4, semi=semi, method=method, weights=weights, bm_return=bm_return, assume_zero=assume_zero, normalize=normalize, ret_format=ret_format, **kwargs)
+        data_size = len(self.return_mat[0])
+        bias_factor = (data_size - 3) * (data_size - 2)/ data_size/(data_size - 1)  
+        return self.calc_comoment_mat(moment=4, semi=semi, method=method, weights=weights, bm_return=bm_return, assume_zero=assume_zero, normalize=normalize, ret_format=ret_format, **kwargs) * bias_factor
 
     def calc_comoment_mat(self, moment, semi=False, method='default', weights=None, bm_return=0.001, assume_zero=False, normalize=True, ret_format='df', **kwargs):
 
@@ -310,7 +312,6 @@ class MomentGenerator:
         # DDOF calculation (May cause overflow if moment is too high)
         unbias_factor = np.prod(np.repeat(num_obs, moment-1)/(num_obs - np.arange(1, moment, 1))) #(num_obs ** (moment - 1)) / (np.prod(num_obs - np.arange(1, moment, 1)))
         weighted_diff_mat = np.multiply(weight_mat, diff_mat) * unbias_factor
-
         moment_mat = np.dot(weighted_diff_mat, temp_mat)
 
         # Normalizing each value in the matrix with standard deviations
