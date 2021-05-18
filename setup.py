@@ -5,7 +5,7 @@ with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
 setup(name='pymarkowitz',
-      version='1.0.1',
+      version='1.1.2',
       description='pymarkowitz',
       url='https://github.com/johnsoong216/pymarkowitz',
       download_url='https://github.com/johnsoong216/pymarkowitz/archive/v1.0.tar.gz',
